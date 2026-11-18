@@ -16,6 +16,8 @@
   var KMH_TO_MPH = 0.621371;
   var WEATHER_MAX_AGE = 20 * 60 * 1000;
   var WEATHER_MOVE_KM = 8;
+  var HISTORY_LIMIT = 90;
+  var OFF_ROUTE_KM = 0.08;
 
   var state = {
     theme: 'amber',
@@ -35,7 +37,12 @@
     trip: null,
     history: [],
     lastWeatherAt: null,
-    installPrompt: null
+    installPrompt: null,
+    vehicle: null,
+    route: null,
+    draft: { origin: null, destination: null, route: null },
+    searchTimer: null,
+    receiptCanvas: null
   };
 
   var watchId = null;
@@ -431,11 +438,7 @@
       els.tripKm.textContent = formatKm(0);
       els.tripTime.textContent = '0 min';
       els.tripAvg.textContent = '— km/h méd';
-      els.pauseLabel.textContent = 'Pausar';
-      els.startTrip.disabled = false;
-      els.pauseTrip.disabled = true;
-      els.finishTrip.disabled = true;
-      els.pauseTrip.classList.remove('is-live');
+      syncTripChrome(false, false);
       return;
     }
     var km = trip.distanceKm || 0;
@@ -450,11 +453,22 @@
     else if (trip.paused) els.tripState.textContent = 'Pausada';
     else if (trip.track && trip.track.length) els.tripState.textContent = 'Trilha ' + trip.track.length;
     else els.tripState.textContent = 'Sem GPS';
-    els.pauseLabel.textContent = trip.paused ? 'Retomar' : 'Pausar';
-    els.startTrip.disabled = true;
-    els.pauseTrip.disabled = false;
-    els.finishTrip.disabled = false;
-    els.pauseTrip.classList.toggle('is-live', !trip.paused);
+    syncTripChrome(true, !!trip.paused);
+  }
+
+  function syncTripChrome(running, paused) {
+    var label = running && paused ? 'Retomar' : 'Pausar';
+    els.pauseLabel.textContent = label;
+    if (els.navPauseLabel) els.navPauseLabel.textContent = label;
+    els.startTrip.disabled = running;
+    els.pauseTrip.disabled = !running;
+    els.finishTrip.disabled = !running;
+    if (els.navStart) els.navStart.disabled = running;
+    if (els.navPause) els.navPause.disabled = !running;
+    if (els.navFinish) els.navFinish.disabled = !running;
+    els.pauseTrip.classList.toggle('is-live', running && !paused);
+    if (els.navPause) els.navPause.classList.toggle('is-live', running && !paused);
+    if (els.tripCost) els.tripCost.textContent = tripCostText();
   }
 
   function saveTrip() {
@@ -504,18 +518,26 @@
     if (state.trip.paused && state.trip.pauseStartedAt) {
       state.trip.pausedMs += now - state.trip.pauseStartedAt;
     }
+    var measuredKm = state.trip.distanceKm || 0;
+    var track = state.trip.track || [];
+    var cost = costSnapshot(measuredKm);
     state.history.unshift({
       id: state.trip.id,
       startedAt: state.trip.startedAt,
       endedAt: now,
-      distanceKm: state.trip.distanceKm || 0,
+      distanceKm: measuredKm,
       movingMs: movingMs(state.trip, now),
       start: state.trip.start || null,
       end: state.trip.end || null,
-      track: state.trip.track || [],
-      simulated: !!state.trip.simulated
+      track: track,
+      plannedGeometry: track.length >= 2 ? null : (state.route && state.route.geometry) || null,
+      plannedKm: state.route && state.route.distanceKm ? state.route.distanceKm : null,
+      origin: state.route && state.route.origin ? state.route.origin.label : '',
+      destination: state.route && state.route.destination ? state.route.destination.label : '',
+      simulated: !!state.trip.simulated,
+      cost: cost
     });
-    if (state.history.length > 30) state.history.length = 30;
+    if (state.history.length > HISTORY_LIMIT) state.history.length = HISTORY_LIMIT;
     state.trip = null;
     lastFix = null;
     writeStore('rota.history', state.history);
@@ -591,6 +613,7 @@
     if (typeof coords.accuracy === 'number' && coords.accuracy > 80 && kmh < 8) kmh = 0;
     pushSample(kmh);
     fetchWeather(coords.latitude, coords.longitude);
+    if (state.focus === 3) renderNav();
   }
 
   function onPositionError(error) {
@@ -679,18 +702,31 @@
     writeStore('rota.theme', name);
   }
 
+  function focusCount() {
+    return routeArmed() ? 4 : 3;
+  }
+
   function setFocus(mode) {
+    var count = focusCount();
+    mode = ((mode % count) + count) % count;
     state.focus = mode;
     state.hud = mode === 2;
     document.body.classList.toggle('is-focus', mode === 1);
     document.body.classList.toggle('is-hud', mode === 2);
+    document.body.classList.toggle('is-nav', mode === 3);
     if (els.companion) els.companion.hidden = mode !== 1;
+    if (els.navPane) els.navPane.hidden = mode !== 3;
     if (els.toolPicker && mode !== 1) els.toolPicker.hidden = true;
     els.gauge.setAttribute('aria-pressed', mode ? 'true' : 'false');
     if (els.hudHint) {
-      els.hudHint.textContent = mode === 1 ? 'Toque para o velocímetro' : 'Toque para voltar';
+      if (mode === 1) els.hudHint.textContent = 'Toque para o velocímetro';
+      else if (mode === 2 && count === 4) els.hudHint.textContent = 'Toque para a rota';
+      else if (mode === 3) els.hudHint.textContent = 'Toque para o painel';
+      else els.hudHint.textContent = 'Toque para voltar';
     }
     if (mode === 1) renderClock();
+    if (mode === 3) ensureNav();
+    else navFitted = false;
   }
 
   function openDrawer() {
@@ -718,6 +754,7 @@
     els.historyHint.textContent = state.history.length
       ? state.history.length + (state.history.length === 1 ? ' viagem' : ' viagens')
       : 'Nenhuma';
+    renderCostTotals();
 
     if (!state.history.length) return;
 
@@ -734,6 +771,12 @@
       if (trip.movingMs) detail += ' · ' + formatSpan(trip.movingMs);
       dist.textContent = detail;
       copy.append(when, dist);
+      if (trip.cost) {
+        var money = document.createElement('p');
+        money.className = 'trip-coords';
+        money.textContent = formatBRL(trip.cost.totalCents) + shareSuffix(trip.cost);
+        copy.appendChild(money);
+      }
       var note = document.createElement('p');
       note.className = 'trip-coords';
       if (trip.track && trip.track.length >= 2) {
@@ -758,7 +801,16 @@
       });
       var buttons = document.createElement('div');
       buttons.className = 'trip-buttons';
-      var route = trip.track && trip.track.length >= 2;
+      var receiptBtn = document.createElement('button');
+      receiptBtn.type = 'button';
+      receiptBtn.className = 'skeuo icon-btn';
+      receiptBtn.textContent = 'Recibo';
+      receiptBtn.addEventListener('click', function () {
+        openReceipt(trip);
+        tap();
+      });
+      buttons.appendChild(receiptBtn);
+      var route = (trip.track && trip.track.length >= 2) || (trip.plannedGeometry && trip.plannedGeometry.length >= 2);
       if (route) {
         var mapBtn = document.createElement('button');
         mapBtn.type = 'button';
@@ -1057,6 +1109,14 @@
 
   var leafletPromise = null;
   var routeLeaflet = null;
+  var navLeaflet = null;
+  var navRouteLine = null;
+  var navTrackLine = null;
+  var navMarker = null;
+  var navFitted = false;
+  var plannerLeaflet = null;
+  var plannerLine = null;
+  var routeToken = 0;
 
   function loadLeaflet() {
     if (window.L) return Promise.resolve();
@@ -1064,10 +1124,10 @@
     leafletPromise = new Promise(function (resolve, reject) {
       var link = document.createElement('link');
       link.rel = 'stylesheet';
-      link.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
+      link.href = './vendor/leaflet/leaflet.css';
       document.head.appendChild(link);
       var script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
+      script.src = './vendor/leaflet/leaflet.js';
       script.onload = function () { resolve(); };
       script.onerror = function () {
         leafletPromise = null;
@@ -1092,6 +1152,9 @@
     if (trip.movingMs) bits.push(formatSpan(trip.movingMs));
     els.mapMeta.textContent = bits.join(' · ');
     var points = trip.track && trip.track.length ? trip.track.slice() : [];
+    if (points.length < 2 && trip.plannedGeometry && trip.plannedGeometry.length >= 2) {
+      points = trip.plannedGeometry.slice();
+    }
     if (trip.end && points.length) {
       var lastPoint = points[points.length - 1];
       if (lastPoint.lat !== trip.end.lat || lastPoint.lon !== trip.end.lon) points.push(trip.end);
@@ -1118,20 +1181,891 @@
       }).addTo(map);
       var latlngs = points.map(function (point) { return [point.lat, point.lon]; });
       if (latlngs.length >= 2) {
-        var line = L.polyline(latlngs, { color: '#ff6d00', weight: 5 }).addTo(map);
+        var line = L.polyline(latlngs, { color: cssColor('--accent', '#ff6d00'), weight: 5 }).addTo(map);
         map.fitBounds(line.getBounds(), { padding: [28, 28] });
       } else if (latlngs.length === 1) {
         map.setView(latlngs[0], 15);
       }
       if (latlngs.length) {
-        L.circleMarker(latlngs[0], { radius: 7, color: '#ffb300', fillColor: '#ffb300', fillOpacity: 1 }).addTo(map);
-        L.circleMarker(latlngs[latlngs.length - 1], { radius: 7, color: '#ff6d00', fillColor: '#ff6d00', fillOpacity: 1 }).addTo(map);
+        L.circleMarker(latlngs[0], { radius: 7, color: cssColor('--text', '#ffb300'), fillColor: cssColor('--text', '#ffb300'), fillOpacity: 1 }).addTo(map);
+        L.circleMarker(latlngs[latlngs.length - 1], { radius: 7, color: cssColor('--accent', '#ff6d00'), fillColor: cssColor('--accent', '#ff6d00'), fillOpacity: 1 }).addTo(map);
       }
       setTimeout(function () { map.invalidateSize(); }, 80);
     }).catch(function () {
       els.mapNote.hidden = false;
       els.mapNote.textContent = 'Não foi possível abrir o mapa agora.';
     });
+  }
+
+  function cssColor(name, fallback) {
+    var value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+  }
+
+  function parseNum(value) {
+    if (typeof value === 'number') return isFinite(value) ? value : null;
+    if (value == null || String(value).trim() === '') return null;
+    var number = parseFloat(String(value).replace(',', '.'));
+    return isFinite(number) ? number : null;
+  }
+
+  function clampPeople(value) {
+    var number = Math.round(parseNum(value) || 1);
+    if (number < 1) return 1;
+    if (number > 6) return 6;
+    return number;
+  }
+
+  function blankVehicle() {
+    return {
+      catalogId: '',
+      name: '',
+      kind: 'carro',
+      fuel: 'gasolina',
+      kmPerLiter: '',
+      tankLiters: '',
+      litersNow: '',
+      pricePerLiter: '',
+      people: 1
+    };
+  }
+
+  function formatBRL(cents) {
+    return (Number(cents) / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function formatPrice(value) {
+    return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function formatLiters(value) {
+    return Number(value || 0).toLocaleString('pt-BR', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1
+    }) + ' l';
+  }
+
+  function formatRemain(km) {
+    if (km >= 1) return formatKm(km) + ' km';
+    return Math.max(0, Math.round(km * 1000)) + ' m';
+  }
+
+  function computeCost(km, vehicle) {
+    if (!vehicle) return null;
+    var kmPerLiter = parseNum(vehicle.kmPerLiter);
+    var price = parseNum(vehicle.pricePerLiter);
+    var people = clampPeople(vehicle.people);
+    if (!(kmPerLiter > 0) || price == null || price < 0 || !(km >= 0)) return null;
+    var liters = km / kmPerLiter;
+    var totalCents = Math.round(liters * price * 100);
+    var base = Math.floor(totalCents / people);
+    var remainder = totalCents - base * people;
+    var shares = [];
+    for (var i = 0; i < people; i++) shares.push(base + (i === 0 ? remainder : 0));
+    return {
+      liters: liters,
+      totalCents: totalCents,
+      people: people,
+      sharesCents: shares,
+      kmPerLiter: kmPerLiter,
+      pricePerLiter: price
+    };
+  }
+
+  function vehicleReady() {
+    return !!computeCost(0, state.vehicle);
+  }
+
+  function costSnapshot(km) {
+    var cost = computeCost(km, state.vehicle);
+    if (!cost) return null;
+    return {
+      kmPerLiter: cost.kmPerLiter,
+      pricePerLiter: cost.pricePerLiter,
+      liters: cost.liters,
+      totalCents: cost.totalCents,
+      people: cost.people,
+      sharesCents: cost.sharesCents,
+      vehicleName: state.vehicle.name || '',
+      kind: state.vehicle.kind || 'carro',
+      fuel: state.vehicle.fuel || 'gasolina',
+      tankLiters: parseNum(state.vehicle.tankLiters)
+    };
+  }
+
+  function shareSuffix(cost) {
+    if (!cost || cost.people < 2) return '';
+    var same = cost.sharesCents.every(function (cents) { return cents === cost.sharesCents[0]; });
+    if (same) return ' · ' + formatBRL(cost.sharesCents[0]) + ' cada';
+    var low = cost.sharesCents[0];
+    var high = low;
+    cost.sharesCents.forEach(function (cents) {
+      if (cents < low) low = cents;
+      if (cents > high) high = cents;
+    });
+    return ' · ' + formatBRL(low) + ' a ' + formatBRL(high);
+  }
+
+  function tripCostText() {
+    if (!vehicleReady()) return 'Defina o veículo';
+    if (!state.trip) {
+      return formatKm(parseNum(state.vehicle.kmPerLiter)) + ' km/l · ' + formatPrice(parseNum(state.vehicle.pricePerLiter)) + '/l';
+    }
+    var cost = computeCost(state.trip.distanceKm || 0, state.vehicle);
+    return '≈ ' + formatBRL(cost.totalCents) + shareSuffix(cost);
+  }
+
+  function splitPhrase(cost) {
+    var shares = cost.sharesCents || [];
+    if ((cost.people || 1) < 2 || shares.length < 2) return 'Sem divisão';
+    var same = shares.every(function (cents) { return cents === shares[0]; });
+    if (same) return cost.people + ' pessoas · ' + formatBRL(shares[0]) + ' cada';
+    return cost.people + ' pessoas · ' + shares.map(formatBRL).join(' · ') + '. A primeira cota fecha a conta.';
+  }
+
+  function spParts(ts) {
+    var parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(new Date(ts));
+    var map = {};
+    parts.forEach(function (part) { map[part.type] = part.value; });
+    return map;
+  }
+
+  function spMidnight(ts) {
+    var parts = spParts(ts);
+    return Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day));
+  }
+
+  function weekStart(ts) {
+    var midnight = spMidnight(ts);
+    var day = new Date(midnight).getUTCDay();
+    var delta = day === 0 ? 6 : day - 1;
+    return midnight - delta * 86400000;
+  }
+
+  function sumPeriod(kind) {
+    var now = Date.now();
+    var km = 0;
+    var cents = 0;
+    state.history.forEach(function (trip) {
+      var stamp = trip.startedAt;
+      var same = kind === 'day'
+        ? spMidnight(stamp) === spMidnight(now)
+        : kind === 'week'
+          ? weekStart(stamp) === weekStart(now)
+          : spParts(stamp).year === spParts(now).year && spParts(stamp).month === spParts(now).month;
+      if (!same) return;
+      km += trip.distanceKm || 0;
+      if (trip.cost) cents += trip.cost.totalCents || 0;
+    });
+    return formatKm(km) + ' km · ' + formatBRL(cents);
+  }
+
+  function renderCostTotals() {
+    if (!els.costTotals) return;
+    els.costTotals.textContent = 'Hoje ' + sumPeriod('day') + ' · Semana ' + sumPeriod('week') + ' · Mês ' + sumPeriod('month');
+  }
+
+  function renderVehicleReadout() {
+    if (!els.vehicleReadout) return;
+    var vehicle = state.vehicle || blankVehicle();
+    var kmPerLiter = parseNum(vehicle.kmPerLiter);
+    var tank = parseNum(vehicle.tankLiters);
+    var price = parseNum(vehicle.pricePerLiter);
+    var nowLiters = parseNum(vehicle.litersNow);
+    var bits = [];
+    if (kmPerLiter > 0 && tank > 0) {
+      bits.push('Tanque cheio ' + formatKm(tank * kmPerLiter) + ' km');
+      if (price != null && price >= 0) bits.push(formatPrice(tank * price) + ' para encher');
+    }
+    if (kmPerLiter > 0 && vehicle.litersNow !== '' && nowLiters != null && nowLiters >= 0) {
+      bits.push('Agora ' + formatKm(nowLiters * kmPerLiter) + ' km');
+    }
+    if (!bits.length) bits.push(vehicleReady() ? 'Pronto para calcular o trecho.' : 'Informe km/l e o preço do litro.');
+    els.vehicleReadout.textContent = bits.join(' · ');
+  }
+
+  function readVehicleForm() {
+    var catalogId = els.vehicleCatalog.value;
+    var kind = els.vehicleKind.value === 'moto' ? 'moto' : 'carro';
+    if (catalogId !== '' && window.ROTA_CATALOG && window.ROTA_CATALOG[Number(catalogId)]) {
+      kind = window.ROTA_CATALOG[Number(catalogId)].kind;
+    }
+    state.vehicle = {
+      catalogId: catalogId,
+      name: els.vehicleName.value.trim(),
+      kind: kind,
+      fuel: els.vehicleFuel.value || 'gasolina',
+      kmPerLiter: els.vehicleKmL.value.trim(),
+      tankLiters: els.vehicleTank.value.trim(),
+      litersNow: els.vehicleNow.value.trim(),
+      pricePerLiter: els.vehiclePrice.value.trim(),
+      people: clampPeople(els.vehiclePeople.value)
+    };
+    if (els.vehicleKind.value !== state.vehicle.kind) els.vehicleKind.value = state.vehicle.kind;
+    writeStore('rota.vehicle', state.vehicle);
+    renderVehicleReadout();
+    renderTrip();
+    if (state.focus === 3) renderNav();
+  }
+
+  function fillVehicleForm() {
+    var vehicle = state.vehicle || blankVehicle();
+    fillCatalog();
+    els.vehicleCatalog.value = vehicle.catalogId || '';
+    if (els.vehicleCatalog.value !== (vehicle.catalogId || '')) els.vehicleCatalog.value = '';
+    els.vehicleName.value = vehicle.name || '';
+    els.vehicleKind.value = vehicle.kind === 'moto' ? 'moto' : 'carro';
+    els.vehicleFuel.value = vehicle.fuel || 'gasolina';
+    els.vehicleKmL.value = vehicle.kmPerLiter == null ? '' : String(vehicle.kmPerLiter);
+    els.vehicleTank.value = vehicle.tankLiters == null ? '' : String(vehicle.tankLiters);
+    els.vehicleNow.value = vehicle.litersNow == null ? '' : String(vehicle.litersNow);
+    els.vehiclePrice.value = vehicle.pricePerLiter == null ? '' : String(vehicle.pricePerLiter);
+    els.vehiclePeople.value = String(clampPeople(vehicle.people));
+    renderVehicleReadout();
+  }
+
+  function fillCatalog() {
+    var select = els.vehicleCatalog;
+    if (!select || select.options.length) return;
+    var manual = document.createElement('option');
+    manual.value = '';
+    manual.textContent = 'Informar à mão';
+    select.appendChild(manual);
+    ['carro', 'moto'].forEach(function (kind) {
+      var group = document.createElement('optgroup');
+      group.label = kind === 'carro' ? 'Carros' : 'Motos';
+      (window.ROTA_CATALOG || []).forEach(function (item, index) {
+        if (item.kind !== kind) return;
+        var option = document.createElement('option');
+        option.value = String(index);
+        option.textContent = item.name;
+        group.appendChild(option);
+      });
+      select.appendChild(group);
+    });
+  }
+
+  function applyCatalog(index) {
+    var item = window.ROTA_CATALOG && window.ROTA_CATALOG[index];
+    if (!item) return;
+    els.vehicleName.value = item.name;
+    els.vehicleKind.value = item.kind;
+    els.vehicleFuel.value = item.fuel;
+    els.vehicleKmL.value = String(item.kmPerLiter).replace('.', ',');
+    els.vehicleTank.value = String(item.tankLiters).replace('.', ',');
+  }
+
+  function routeArmed() {
+    return !!(state.route && state.route.geometry && state.route.geometry.length >= 2);
+  }
+
+  function projectRatio(lat, lon, a, b) {
+    var lat0 = ((a.lat + b.lat) / 2) * Math.PI / 180;
+    var x = (lon - a.lon) * Math.cos(lat0);
+    var y = lat - a.lat;
+    var dx = (b.lon - a.lon) * Math.cos(lat0);
+    var dy = b.lat - a.lat;
+    var len2 = dx * dx + dy * dy;
+    if (!len2) return 0;
+    var t = (x * dx + y * dy) / len2;
+    if (t < 0) return 0;
+    if (t > 1) return 1;
+    return t;
+  }
+
+  function routeProgress(lat, lon, line) {
+    var best = { distKm: Infinity, alongKm: 0 };
+    var along = 0;
+    var total = 0;
+    for (var i = 0; i < line.length - 1; i++) {
+      var a = line[i];
+      var b = line[i + 1];
+      var segment = haversine(a.lat, a.lon, b.lat, b.lon);
+      var t = projectRatio(lat, lon, a, b);
+      var pointLat = a.lat + (b.lat - a.lat) * t;
+      var pointLon = a.lon + (b.lon - a.lon) * t;
+      var distance = haversine(lat, lon, pointLat, pointLon);
+      if (distance < best.distKm) best = { distKm: distance, alongKm: along + segment * t };
+      along += segment;
+      total += segment;
+    }
+    best.totalKm = total;
+    best.remainKm = Math.max(0, total - best.alongKm);
+    best.off = best.distKm > OFF_ROUTE_KM;
+    return best;
+  }
+
+  function stepText(step) {
+    var maneuver = step.maneuver || {};
+    var type = maneuver.type || '';
+    var modifier = maneuver.modifier || '';
+    var text = 'Siga';
+    if (type === 'arrive') text = modifier === 'left' ? 'Chegada à esquerda' : modifier === 'right' ? 'Chegada à direita' : 'Chegada';
+    else if (type === 'roundabout' || type === 'rotary') {
+      text = 'Entre na rotatória';
+      if (maneuver.exit) text += ', saída ' + maneuver.exit;
+    } else if (type === 'exit roundabout' || type === 'exit rotary') {
+      text = 'Saia da rotatória';
+      if (maneuver.exit) text += ', saída ' + maneuver.exit;
+    } else {
+      var key = type + ':' + modifier;
+      var table = {
+        'turn:left': 'Vire à esquerda',
+        'turn:right': 'Vire à direita',
+        'turn:slight left': 'Mantenha-se à esquerda',
+        'turn:slight right': 'Mantenha-se à direita',
+        'turn:sharp left': 'Vire fechado à esquerda',
+        'turn:sharp right': 'Vire fechado à direita',
+        'turn:uturn': 'Retorne',
+        'turn:straight': 'Siga em frente',
+        'new name:straight': 'Siga em frente',
+        'new name:slight left': 'Mantenha-se à esquerda',
+        'new name:slight right': 'Mantenha-se à direita',
+        'new name:left': 'Mantenha-se à esquerda',
+        'new name:right': 'Mantenha-se à direita',
+        'continue:straight': 'Siga em frente',
+        'continue:slight left': 'Mantenha-se à esquerda',
+        'continue:slight right': 'Mantenha-se à direita',
+        'continue:left': 'Mantenha-se à esquerda',
+        'continue:right': 'Mantenha-se à direita',
+        'continue:uturn': 'Retorne',
+        'depart:straight': 'Siga',
+        'depart:left': 'Siga à esquerda',
+        'depart:right': 'Siga à direita',
+        'depart:slight left': 'Siga à esquerda',
+        'depart:slight right': 'Siga à direita',
+        'fork:left': 'Na bifurcação, à esquerda',
+        'fork:right': 'Na bifurcação, à direita',
+        'fork:slight left': 'Na bifurcação, à esquerda',
+        'fork:slight right': 'Na bifurcação, à direita',
+        'fork:straight': 'Siga na bifurcação',
+        'merge:left': 'Entre à esquerda',
+        'merge:right': 'Entre à direita',
+        'merge:slight left': 'Entre à esquerda',
+        'merge:slight right': 'Entre à direita',
+        'merge:straight': 'Entre na via',
+        'end of road:left': 'No fim da via, à esquerda',
+        'end of road:right': 'No fim da via, à direita',
+        'end of road:straight': 'No fim da via, siga em frente',
+        'on ramp:left': 'Pegue a entrada à esquerda',
+        'on ramp:right': 'Pegue a entrada à direita',
+        'on ramp:slight left': 'Pegue a entrada à esquerda',
+        'on ramp:slight right': 'Pegue a entrada à direita',
+        'on ramp:straight': 'Pegue a entrada',
+        'off ramp:left': 'Pegue a saída à esquerda',
+        'off ramp:right': 'Pegue a saída à direita',
+        'off ramp:slight left': 'Pegue a saída à esquerda',
+        'off ramp:slight right': 'Pegue a saída à direita',
+        'off ramp:straight': 'Pegue a saída'
+      };
+      text = table[key] || table[type + ':'] || 'Siga';
+    }
+    if (step.name && type !== 'arrive') text += ' · ' + step.name;
+    return text;
+  }
+
+  function parseSteps(legs) {
+    var steps = [];
+    var along = 0;
+    (legs || []).forEach(function (leg) {
+      (leg.steps || []).forEach(function (step) {
+        var location = step.maneuver && step.maneuver.location;
+        if (!location) return;
+        steps.push({
+          lat: location[1],
+          lon: location[0],
+          alongKm: along,
+          text: stepText(step)
+        });
+        along += (step.distance || 0) / 1000;
+      });
+    });
+    return steps;
+  }
+
+  function simplifyLine(points, max) {
+    if (points.length <= max) return points.slice();
+    var out = [];
+    var step = (points.length - 1) / (max - 1);
+    for (var i = 0; i < max; i++) out.push(points[Math.round(i * step)]);
+    out[0] = points[0];
+    out[out.length - 1] = points[points.length - 1];
+    return out;
+  }
+
+  function buildRoute(osrmRoute, origin, destination) {
+    var coords = (osrmRoute.geometry && osrmRoute.geometry.coordinates) || [];
+    var geometry = simplifyLine(coords.map(function (pair) {
+      return { lat: pair[1], lon: pair[0] };
+    }), 150);
+    return {
+      origin: origin,
+      destination: destination,
+      distanceKm: (osrmRoute.distance || 0) / 1000,
+      durationSec: osrmRoute.duration || 0,
+      geometry: geometry,
+      steps: parseSteps(osrmRoute.legs)
+    };
+  }
+
+  function formatDuration(seconds) {
+    var minutes = Math.max(0, Math.round(seconds / 60));
+    if (minutes < 60) return minutes + ' min';
+    return Math.floor(minutes / 60) + ' h ' + (minutes % 60) + ' min';
+  }
+
+  function routeSummaryText(route) {
+    return formatKm(route.distanceKm) + ' km · ' + formatDuration(route.durationSec);
+  }
+
+  function placeLabel(props) {
+    var main = props.name || [props.street, props.housenumber].filter(Boolean).join(', ') || 'Lugar';
+    var city = props.city || props.town || props.village || props.county || '';
+    var region = props.state || '';
+    var tail = [city, region].filter(function (part, index, list) {
+      return part && list.indexOf(part) === index;
+    }).join(' · ');
+    return tail ? main + ' · ' + tail : main;
+  }
+
+  function nextManeuver(alongKm) {
+    var steps = (state.route && state.route.steps) || [];
+    for (var i = 0; i < steps.length; i++) {
+      if (steps[i].alongKm - alongKm >= 0.02) return steps[i];
+    }
+    return { text: 'Chegada', alongKm: alongKm };
+  }
+
+  function drawSketch(canvas, route, track, fix) {
+    var rect = canvas.getBoundingClientRect();
+    var width = Math.max(1, Math.round(rect.width || canvas.clientWidth || 320));
+    var height = Math.max(1, Math.round(rect.height || canvas.clientHeight || 200));
+    var ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.fillStyle = cssColor('--cutout', '#111111');
+    ctx.fillRect(0, 0, width, height);
+    var line = route || [];
+    var driven = track || [];
+    var cloud = line.concat(driven);
+    if (fix) cloud.push({ lat: fix.lat, lon: fix.lon });
+    if (line.length < 2) {
+      ctx.fillStyle = cssColor('--muted', '#f0d48a');
+      ctx.font = '700 14px Segoe UI, sans-serif';
+      ctx.fillText('Sem rota neste aparelho', 16, 28);
+      return;
+    }
+    var minLat = Infinity;
+    var maxLat = -Infinity;
+    var minLon = Infinity;
+    var maxLon = -Infinity;
+    cloud.forEach(function (point) {
+      if (point.lat < minLat) minLat = point.lat;
+      if (point.lat > maxLat) maxLat = point.lat;
+      if (point.lon < minLon) minLon = point.lon;
+      if (point.lon > maxLon) maxLon = point.lon;
+    });
+    var spanLat = Math.max(0.002, maxLat - minLat);
+    var spanLon = Math.max(0.002, maxLon - minLon);
+    var pad = 18;
+    function xy(point) {
+      return [
+        pad + ((point.lon - minLon) / spanLon) * (width - pad * 2),
+        pad + ((maxLat - point.lat) / spanLat) * (height - pad * 2)
+      ];
+    }
+    function stroke(points, color, widthPx) {
+      if (!points || points.length < 2) return;
+      ctx.beginPath();
+      points.forEach(function (point, index) {
+        var spot = xy(point);
+        if (index === 0) ctx.moveTo(spot[0], spot[1]);
+        else ctx.lineTo(spot[0], spot[1]);
+      });
+      ctx.strokeStyle = color;
+      ctx.lineWidth = widthPx;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+    stroke(line, cssColor('--accent', '#ff6d00'), 5);
+    stroke(driven, cssColor('--text', '#ffb300'), 3);
+    var start = xy(line[0]);
+    var end = xy(line[line.length - 1]);
+    ctx.fillStyle = cssColor('--text', '#ffb300');
+    ctx.beginPath();
+    ctx.arc(start[0], start[1], 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = cssColor('--accent', '#ff6d00');
+    ctx.beginPath();
+    ctx.arc(end[0], end[1], 6, 0, Math.PI * 2);
+    ctx.fill();
+    if (fix) {
+      var here = xy(fix);
+      ctx.fillStyle = cssColor('--text', '#ffb300');
+      ctx.beginPath();
+      ctx.arc(here[0], here[1], 7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = cssColor('--muted', '#f0d48a');
+    ctx.font = '700 12px Segoe UI, sans-serif';
+    ctx.fillText('Traçado salvo neste aparelho', 12, height - 10);
+  }
+
+  function showSketch(canvas, mapNode, route, track, fix) {
+    if (mapNode) mapNode.hidden = true;
+    canvas.hidden = false;
+    requestAnimationFrame(function () { drawSketch(canvas, route, track, fix); });
+  }
+
+  function renderNav() {
+    if (state.focus !== 3 || !els.navManeuver) return;
+    var route = state.route;
+    if (!routeArmed()) {
+      els.navManeuver.textContent = 'Nenhuma rota armada';
+      els.navRemain.textContent = '';
+      els.navCost.textContent = tripCostText();
+      return;
+    }
+    var progress = lastFix ? routeProgress(lastFix.lat, lastFix.lon, route.geometry) : null;
+    var off = !!(progress && progress.off);
+    if (!lastFix) {
+      els.navManeuver.textContent = route.steps && route.steps[0] ? route.steps[0].text : 'Rota pronta';
+      els.navRemain.textContent = 'Previsto ' + routeSummaryText(route);
+    } else if (off) {
+      els.navManeuver.textContent = 'Fora do traçado';
+      els.navRemain.textContent = 'O custo segue o km medido';
+    } else {
+      var step = nextManeuver(progress.alongKm);
+      var ahead = Math.max(0, step.alongKm - progress.alongKm);
+      els.navManeuver.textContent = step.text;
+      var remain = 'em ' + formatRemain(ahead) + ' · restam ' + formatRemain(progress.remainKm);
+      var speed = state.displayKmh;
+      var hours = speed >= 8
+        ? progress.remainKm / speed
+        : (route.durationSec / 3600) * (route.distanceKm ? progress.remainKm / route.distanceKm : 0);
+      if (hours > 0 && isFinite(hours)) {
+        remain += ' · ' + new Date(Date.now() + hours * 3600000).toLocaleTimeString('pt-BR', {
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+      els.navRemain.textContent = remain;
+    }
+    var measured = state.trip ? state.trip.distanceKm || 0 : 0;
+    var spent = state.trip ? computeCost(measured, state.vehicle) : null;
+    var line = state.trip
+      ? (spent ? 'Até agora ' + formatBRL(spent.totalCents) + shareSuffix(spent) : 'Defina o veículo')
+      : (vehicleReady() ? '' : 'Defina o veículo');
+    if (!off && vehicleReady()) {
+      var planned = computeCost(route.distanceKm, state.vehicle);
+      if (planned) line += (line ? ' · previsto ' : 'Previsto ') + formatBRL(planned.totalCents);
+    }
+    if (!line) line = tripCostText();
+    els.navCost.textContent = line;
+    if (els.navCredit) {
+      els.navCredit.textContent = navigator.onLine ? '© OpenStreetMap' : 'Traçado salvo neste aparelho';
+    }
+    if (!navigator.onLine || els.navMap.hidden) {
+      showSketch(els.navSketch, els.navMap, route.geometry, state.trip && state.trip.track, lastFix);
+      return;
+    }
+    updateNavLayers();
+  }
+
+  function ensureNav() {
+    renderNav();
+    if (!navigator.onLine) {
+      showSketch(els.navSketch, els.navMap, state.route && state.route.geometry, state.trip && state.trip.track, lastFix);
+      return;
+    }
+    els.navSketch.hidden = true;
+    els.navMap.hidden = false;
+    loadLeaflet().then(function () {
+      if (state.focus !== 3 || !window.L) return;
+      if (!navLeaflet) {
+        navLeaflet = L.map('navMap', { zoomControl: false, attributionControl: true });
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap'
+        }).addTo(navLeaflet);
+        navRouteLine = L.polyline([], { weight: 5 }).addTo(navLeaflet);
+        navTrackLine = L.polyline([], { weight: 4 }).addTo(navLeaflet);
+        navMarker = L.circleMarker([0, 0], { radius: 7, fillOpacity: 1 }).addTo(navLeaflet);
+      }
+      updateNavLayers();
+      setTimeout(function () { if (navLeaflet) navLeaflet.invalidateSize(); }, 80);
+    }).catch(function () {
+      showSketch(els.navSketch, els.navMap, state.route && state.route.geometry, state.trip && state.trip.track, lastFix);
+    });
+  }
+
+  function updateNavLayers() {
+    if (!navLeaflet || !routeArmed()) return;
+    var accent = cssColor('--accent', '#ff6d00');
+    var text = cssColor('--text', '#ffb300');
+    navRouteLine.setLatLngs(state.route.geometry.map(function (point) { return [point.lat, point.lon]; }));
+    navRouteLine.setStyle({ color: accent });
+    var track = (state.trip && state.trip.track) || [];
+    navTrackLine.setLatLngs(track.map(function (point) { return [point.lat, point.lon]; }));
+    navTrackLine.setStyle({ color: text });
+    if (lastFix) {
+      navMarker.setLatLng([lastFix.lat, lastFix.lon]);
+      navMarker.setStyle({ color: text, fillColor: text });
+    }
+    if (!navFitted) {
+      navLeaflet.fitBounds(navRouteLine.getBounds(), { padding: [24, 24] });
+      navFitted = true;
+    }
+  }
+
+  function scheduleSearch(target) {
+    clearTimeout(state.searchTimer);
+    var input = target === 'origin' ? els.originInput : els.destInput;
+    var query = input.value.trim();
+    if (query.length < 3) {
+      els.placeResults.replaceChildren();
+      return;
+    }
+    state.searchTimer = setTimeout(function () { runSearch(query, target); }, 400);
+  }
+
+  function searchBias() {
+    if (lastFix) return { lat: lastFix.lat, lon: lastFix.lon };
+    if (state.weather && state.weather.lat != null && state.weather.lon != null) {
+      return { lat: state.weather.lat, lon: state.weather.lon };
+    }
+    return null;
+  }
+
+  function runSearch(query, target) {
+    var url = 'https://photon.komoot.io/api/?limit=5&q=' + encodeURIComponent(query);
+    var bias = searchBias();
+    if (bias) url += '&lat=' + bias.lat + '&lon=' + bias.lon;
+    fetch(url).then(function (response) {
+      if (!response.ok) throw new Error('busca');
+      return response.json();
+    }).then(function (data) {
+      var features = (data.features || []).slice(0, 5);
+      if (!features.length) {
+        els.placeResults.replaceChildren();
+        els.plannerNote.textContent = 'Nenhum lugar encontrado.';
+        return;
+      }
+      els.plannerNote.textContent = 'A busca pede internet uma vez. O traçado fica neste aparelho.';
+      renderPlaces(features, target);
+    }).catch(function () {
+      els.placeResults.replaceChildren();
+      els.plannerNote.textContent = 'Não foi possível buscar agora.';
+    });
+  }
+
+  function renderPlaces(features, target) {
+    els.placeResults.replaceChildren();
+    features.forEach(function (feature) {
+      var coords = feature.geometry && feature.geometry.coordinates;
+      if (!coords) return;
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'skeuo';
+      button.textContent = placeLabel(feature.properties || {});
+      button.addEventListener('click', function () {
+        var place = { lat: coords[1], lon: coords[0], label: button.textContent };
+        if (target === 'origin') {
+          state.draft.origin = place;
+          els.originInput.value = place.label;
+        } else {
+          state.draft.destination = place;
+          els.destInput.value = place.label;
+        }
+        els.placeResults.replaceChildren();
+        fetchDraftRoute();
+        tap();
+      });
+      els.placeResults.appendChild(button);
+    });
+  }
+
+  function fetchDraftRoute() {
+    var origin = state.draft.origin;
+    var destination = state.draft.destination;
+    if (!origin || !destination) return;
+    if (!navigator.onLine) {
+      els.routeSummary.textContent = 'A busca da rota precisa de internet.';
+      els.useRoute.disabled = true;
+      return;
+    }
+    var token = ++routeToken;
+    els.routeSummary.textContent = 'Traçando…';
+    els.useRoute.disabled = true;
+    var url = 'https://router.project-osrm.org/route/v1/driving/' +
+      origin.lon + ',' + origin.lat + ';' + destination.lon + ',' + destination.lat +
+      '?overview=full&geometries=geojson&steps=true';
+    fetch(url).then(function (response) {
+      if (!response.ok) throw new Error('rota');
+      return response.json();
+    }).then(function (data) {
+      if (token !== routeToken) return;
+      if (!data.routes || !data.routes[0]) throw new Error('rota');
+      state.draft.route = buildRoute(data.routes[0], origin, destination);
+      els.useRoute.disabled = false;
+      els.routeSummary.textContent = routeSummaryText(state.draft.route);
+      els.plannerNote.textContent = 'A busca pede internet uma vez. O traçado fica neste aparelho.';
+      showPlannerMap(state.draft.route);
+    }).catch(function () {
+      if (token !== routeToken) return;
+      state.draft.route = null;
+      els.useRoute.disabled = true;
+      els.routeSummary.textContent = 'Não foi possível traçar a rota agora.';
+    });
+  }
+
+  function showPlannerMap(route) {
+    if (!route || !route.geometry) return;
+    if (!navigator.onLine) {
+      showSketch(els.plannerSketch, els.plannerMap, route.geometry, [], null);
+      return;
+    }
+    els.plannerSketch.hidden = true;
+    els.plannerMap.hidden = false;
+    loadLeaflet().then(function () {
+      if (els.routePlanner.hidden || !window.L) return;
+      if (!plannerLeaflet) {
+        plannerLeaflet = L.map('plannerMap', { zoomControl: false, attributionControl: true });
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap'
+        }).addTo(plannerLeaflet);
+        plannerLine = L.polyline([], { weight: 5 }).addTo(plannerLeaflet);
+      }
+      var latlngs = route.geometry.map(function (point) { return [point.lat, point.lon]; });
+      plannerLine.setLatLngs(latlngs);
+      plannerLine.setStyle({ color: cssColor('--accent', '#ff6d00') });
+      if (latlngs.length >= 2) plannerLeaflet.fitBounds(plannerLine.getBounds(), { padding: [20, 20] });
+      setTimeout(function () { if (plannerLeaflet) plannerLeaflet.invalidateSize(); }, 80);
+    }).catch(function () {
+      showSketch(els.plannerSketch, els.plannerMap, route.geometry, [], null);
+    });
+  }
+
+  function openPlanner() {
+    els.routePlanner.hidden = false;
+    state.draft = {
+      origin: state.route ? state.route.origin : null,
+      destination: state.route ? state.route.destination : null,
+      route: state.route || null
+    };
+    els.originInput.value = state.draft.origin ? state.draft.origin.label : '';
+    els.destInput.value = state.draft.destination ? state.draft.destination.label : '';
+    els.placeResults.replaceChildren();
+    els.useRoute.disabled = !state.draft.route;
+    els.routeSummary.textContent = state.draft.route ? routeSummaryText(state.draft.route) : '';
+    els.plannerNote.textContent = 'A busca pede internet uma vez. O traçado fica neste aparelho.';
+    if (state.draft.route) showPlannerMap(state.draft.route);
+    tap();
+  }
+
+  function closePlanner() {
+    els.routePlanner.hidden = true;
+    els.placeResults.replaceChildren();
+    if (plannerLeaflet) {
+      plannerLeaflet.remove();
+      plannerLeaflet = null;
+      plannerLine = null;
+    }
+  }
+
+  function useArmedRoute() {
+    if (!state.draft.route) return;
+    state.route = state.draft.route;
+    writeStore('rota.route', state.route);
+    closePlanner();
+    setFocus(3);
+  }
+
+  function clearArmedRoute() {
+    state.route = null;
+    state.draft.route = null;
+    writeStore('rota.route', null);
+    els.useRoute.disabled = true;
+    els.routeSummary.textContent = '';
+    if (state.focus === 3) setFocus(0);
+    tap();
+  }
+
+  function openGoogleDirections() {
+    var destination = state.draft.destination || (state.route && state.route.destination);
+    var origin = state.draft.origin || (state.route && state.route.origin);
+    var web = 'https://www.google.com/maps/dir/?api=1&travelmode=driving';
+    if (origin) web += '&origin=' + origin.lat + ',' + origin.lon;
+    if (destination) web += '&destination=' + destination.lat + ',' + destination.lon;
+    else web = 'https://maps.google.com/maps';
+    var android = /Android/i.test(navigator.userAgent || '');
+    tap();
+    if (android) {
+      var host = web.replace(/^https?:\/\//, '');
+      location.href = 'intent://' + host + '#Intent;scheme=https;package=com.google.android.apps.maps;S.browser_fallback_url=' + encodeURIComponent(web) + ';end';
+      return;
+    }
+    location.href = web;
+  }
+
+  function useMyPosition() {
+    if (!lastFix) {
+      els.plannerNote.textContent = 'Aguardando GPS. Busque a partida pelo endereço.';
+      return;
+    }
+    state.draft.origin = { lat: lastFix.lat, lon: lastFix.lon, label: 'Minha posição' };
+    els.originInput.value = 'Minha posição';
+    els.placeResults.replaceChildren();
+    fetchDraftRoute();
+    tap();
+  }
+
+  function receiptModel(trip) {
+    var km = trip.distanceKm || 0;
+    var hours = (trip.movingMs || 0) / 3600000;
+    var track = trip.track && trip.track.length >= 2 ? trip.track : (trip.plannedGeometry || []);
+    var usingPlan = !(trip.track && trip.track.length >= 2) && track.length >= 2;
+    var model = {
+      km: formatKm(km) + ' km',
+      when: formatWhen(trip.startedAt) + (trip.endedAt ? ' → ' + formatClock(trip.endedAt) : ''),
+      meta: (trip.movingMs ? formatSpan(trip.movingMs) + ' · ' : '') + (hours > 0 ? Math.round(km / hours) + ' km/h méd' : '— km/h méd'),
+      track: track,
+      places: (trip.origin || trip.destination) ? (trip.origin || 'Partida') + ' → ' + (trip.destination || 'Destino') : '',
+      footer: 'Estimativa. Não é cupom fiscal. Traçado do GPS, sem mapa-base.'
+    };
+    if (trip.plannedKm) model.planned = 'Previsto na rota ' + formatKm(trip.plannedKm) + ' km. Vale o km medido.';
+    if (usingPlan) model.extra = 'Traçado previsto, sem GPS suficiente.';
+    if (trip.simulated) model.extra = 'Simulação. Não é um percurso real.';
+    if (!trip.cost) {
+      model.vehicle = 'Sem custo neste trecho.';
+      return model;
+    }
+    var fuel = { gasolina: 'gasolina', etanol: 'etanol', diesel: 'diesel' }[trip.cost.fuel] || '';
+    model.vehicle = [trip.cost.vehicleName || 'Veículo', fuel].filter(Boolean).join(' · ');
+    model.formula = formatKm(km) + ' km ÷ ' + formatKm(trip.cost.kmPerLiter) + ' km/l × ' + formatPrice(trip.cost.pricePerLiter) + ' = ' + formatBRL(trip.cost.totalCents);
+    model.liters = formatLiters(trip.cost.liters);
+    model.split = splitPhrase(trip.cost);
+    return model;
+  }
+
+  function openReceipt(trip) {
+    if (!window.RotaReceipt) return;
+    state.receiptCanvas = window.RotaReceipt.draw(receiptModel(trip));
+    els.receiptImg.src = state.receiptCanvas.toDataURL('image/png');
+    els.receiptSheet.hidden = false;
+  }
+
+  function closeReceipt() {
+    els.receiptSheet.hidden = true;
   }
 
   function init() {
@@ -1173,8 +2107,45 @@
     els.historyHint = $('historyHint');
     els.demoSwitch = $('demoSwitch');
     els.installBtn = $('installBtn');
+    els.tripCost = $('tripCost');
+    els.costTotals = $('costTotals');
+    els.navPane = $('navPane');
+    els.navMap = $('navMap');
+    els.navSketch = $('navSketch');
+    els.navManeuver = $('navManeuver');
+    els.navRemain = $('navRemain');
+    els.navCost = $('navCost');
+    els.navCredit = $('navCredit');
+    els.navStart = $('navStart');
+    els.navPause = $('navPause');
+    els.navFinish = $('navFinish');
+    els.navPauseLabel = $('navPauseLabel');
+    els.vehicleCatalog = $('vehicleCatalog');
+    els.vehicleName = $('vehicleName');
+    els.vehicleKind = $('vehicleKind');
+    els.vehicleFuel = $('vehicleFuel');
+    els.vehiclePeople = $('vehiclePeople');
+    els.vehicleKmL = $('vehicleKmL');
+    els.vehicleTank = $('vehicleTank');
+    els.vehiclePrice = $('vehiclePrice');
+    els.vehicleNow = $('vehicleNow');
+    els.vehicleReadout = $('vehicleReadout');
+    els.vehicleBlock = $('vehicleBlock');
+    els.routePlanner = $('routePlanner');
+    els.plannerNote = $('plannerNote');
+    els.originInput = $('originInput');
+    els.destInput = $('destInput');
+    els.placeResults = $('placeResults');
+    els.routeSummary = $('routeSummary');
+    els.useRoute = $('useRoute');
+    els.plannerMap = $('plannerMap');
+    els.plannerSketch = $('plannerSketch');
+    els.receiptSheet = $('receiptSheet');
+    els.receiptImg = $('receiptImg');
 
     state.history = readStore('rota.history', []) || [];
+    state.vehicle = Object.assign(blankVehicle(), readStore('rota.vehicle', {}) || {});
+    state.route = readStore('rota.route', null);
     state.trip = readStore('rota.trip', null);
     state.weather = readStore('rota.weather', null);
     state.demo = !!readStore('rota.demo', false);
@@ -1186,6 +2157,7 @@
     buildDial();
     buildClock();
     applyTheme(storedTheme);
+    fillVehicleForm();
     renderSpeed();
     renderClock();
     renderTrip();
@@ -1195,15 +2167,16 @@
     setInterval(function () {
       renderClock();
       if (state.trip) renderTrip();
+      if (state.focus === 3) renderNav();
     }, 1000);
 
     els.gauge.addEventListener('click', function (event) {
       event.stopPropagation();
-      setFocus((state.focus + 1) % 3);
+      setFocus(state.focus + 1);
     });
     $('dashboard').addEventListener('click', function (event) {
       if (!state.focus) return;
-      if (event.target.closest('#gauge') || event.target.closest('#companion')) return;
+      if (event.target.closest('#gauge') || event.target.closest('#companion') || event.target.closest('#navPane')) return;
       setFocus(0);
     });
     $('clockDial').addEventListener('click', function (event) {
@@ -1220,7 +2193,46 @@
     $('startTrip').addEventListener('click', startTrip);
     $('pauseTrip').addEventListener('click', pauseTrip);
     $('finishTrip').addEventListener('click', finishTrip);
-    $('openMaps').addEventListener('click', function () { openExternal('maps'); });
+    $('openMaps').addEventListener('click', openPlanner);
+    $('closePlanner').addEventListener('click', closePlanner);
+    $('useHere').addEventListener('click', useMyPosition);
+    $('useRoute').addEventListener('click', useArmedRoute);
+    $('clearRoute').addEventListener('click', clearArmedRoute);
+    $('openGoogle').addEventListener('click', openGoogleDirections);
+    $('originInput').addEventListener('input', function () {
+      state.draft.origin = null;
+      state.draft.route = null;
+      els.useRoute.disabled = true;
+      scheduleSearch('origin');
+    });
+    $('destInput').addEventListener('input', function () {
+      state.draft.destination = null;
+      state.draft.route = null;
+      els.useRoute.disabled = true;
+      scheduleSearch('dest');
+    });
+    $('navStart').addEventListener('click', startTrip);
+    $('navPause').addEventListener('click', pauseTrip);
+    $('navFinish').addEventListener('click', finishTrip);
+    $('tripCost').addEventListener('click', function () {
+      openDrawer();
+      if (els.vehicleBlock) els.vehicleBlock.scrollIntoView({ block: 'nearest' });
+    });
+    $('closeReceipt').addEventListener('click', closeReceipt);
+    $('shareReceipt').addEventListener('click', function () {
+      if (state.receiptCanvas && window.RotaReceipt) window.RotaReceipt.share(state.receiptCanvas);
+    });
+    $('pdfReceipt').addEventListener('click', function () {
+      if (state.receiptCanvas && window.RotaReceipt) window.RotaReceipt.printPdf(state.receiptCanvas);
+    });
+    els.vehicleCatalog.addEventListener('change', function () {
+      if (els.vehicleCatalog.value !== '') applyCatalog(Number(els.vehicleCatalog.value));
+      readVehicleForm();
+    });
+    ['vehicleName', 'vehicleKind', 'vehicleFuel', 'vehiclePeople', 'vehicleKmL', 'vehicleTank', 'vehiclePrice', 'vehicleNow'].forEach(function (id) {
+      $(id).addEventListener('input', readVehicleForm);
+      $(id).addEventListener('change', readVehicleForm);
+    });
     $('openSpotify').addEventListener('click', function () { openExternal('spotify'); });
     $('openHistory').addEventListener('click', openDrawer);
     $('themeChip').addEventListener('click', openDrawer);
@@ -1235,13 +2247,25 @@
     });
     document.addEventListener('keydown', function (event) {
       if (event.key !== 'Escape') return;
-      if (!els.drawer.hidden) closeDrawer();
+      if (els.receiptSheet && !els.receiptSheet.hidden) closeReceipt();
+      else if (els.routePlanner && !els.routePlanner.hidden) closePlanner();
+      else if (!els.drawer.hidden) closeDrawer();
       else if (els.routeMap && !els.routeMap.hidden) closeRoute();
       else if (state.focus) setFocus(0);
     });
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'visible') requestWake();
     });
+
+    window.addEventListener('resize', function () {
+      if (navLeaflet) navLeaflet.invalidateSize();
+      if (plannerLeaflet) plannerLeaflet.invalidateSize();
+      if (state.focus === 3 && !navigator.onLine) {
+        drawSketch(els.navSketch, state.route && state.route.geometry, state.trip && state.trip.track, lastFix);
+      }
+    });
+    window.addEventListener('online', function () { if (state.focus === 3) ensureNav(); });
+    window.addEventListener('offline', function () { if (state.focus === 3) renderNav(); });
 
     bindBattery();
     bindInstall();

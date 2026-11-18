@@ -669,10 +669,14 @@ time {
 body.is-hud .topbar,
 body.is-hud .side,
 body.is-focus .topbar,
-body.is-focus .side { display: none; }
+body.is-focus .side,
+body.is-nav .topbar,
+body.is-nav .side,
+body.is-nav .companion { display: none; }
 
 body.is-hud .hud-hint,
-body.is-focus .hud-hint { display: block; }
+body.is-focus .hud-hint,
+body.is-nav .hud-hint { display: block; }
 
 body.is-hud .dashboard,
 body.is-focus .dashboard {
@@ -863,6 +867,8 @@ body.is-focus .companion:has(#toolFace:not([hidden])) .tool-face {
   display: flex;
   gap: 6px;
   flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .trip-coords {
@@ -961,10 +967,12 @@ body.is-focus .companion:has(#toolFace:not([hidden])) .tool-face {
 .trip-km { font-size: 22px; font-weight: 900; white-space: nowrap; }
 
 .icon-btn {
-  width: 64px;
+  width: auto;
+  min-width: 64px;
   height: 48px;
   flex: 0 0 auto;
   flex-direction: row;
+  padding: 0 8px;
 }
 
 .drawer-block { margin: 0; }
@@ -1049,6 +1057,250 @@ body.is-focus .companion:has(#toolFace:not([hidden])) .tool-face {
 
 .install-btn { width: 100%; height: 44px; flex-direction: row; }
 
+.trip-cost {
+  align-self: flex-start;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vehicle-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.field input,
+.field select {
+  height: 44px;
+  min-width: 0;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--cutout);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 0 10px;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr);
+  gap: 6px;
+}
+
+.field-row:has(#vehicleKmL) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.nav-pane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nav-stage,
+.planner-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--cutout);
+}
+
+.nav-map,
+.nav-sketch,
+#plannerMap,
+#plannerSketch {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--cutout);
+}
+
+.nav-bar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.nav-maneuver,
+.nav-remain,
+.nav-costline,
+.route-summary {
+  margin: 0;
+  min-width: 0;
+}
+
+.nav-maneuver {
+  font-size: clamp(15px, 2.4vh, 20px);
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.nav-remain,
+.nav-costline,
+.route-summary {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.nav-actions {
+  height: 48px;
+  flex: none;
+}
+
+.route-planner {
+  position: fixed;
+  inset: 0;
+  z-index: 32;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding:
+    calc(10px + env(safe-area-inset-top))
+    calc(12px + env(safe-area-inset-right))
+    calc(10px + env(safe-area-inset-bottom))
+    calc(12px + env(safe-area-inset-left));
+  background: var(--bg);
+  color: var(--text);
+}
+
+.route-planner[hidden] { display: none !important; }
+
+.planner-fields {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+
+.planner-here {
+  height: 44px;
+  flex-direction: row;
+}
+
+.place-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 28vh;
+  overflow: auto;
+  scrollbar-width: none;
+}
+
+.place-results:empty { display: none; }
+
+.place-results button {
+  height: auto;
+  min-height: 44px;
+  flex-direction: row;
+  justify-content: flex-start;
+  padding: 8px 10px;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: normal;
+}
+
+.planner-stage { flex: 1 1 auto; min-height: 140px; }
+
+.planner-actions {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  height: 48px;
+}
+
+.planner-actions .skeuo {
+  height: 48px;
+  flex-direction: row;
+  font-size: clamp(10px, 2.4vw, 13px);
+  white-space: nowrap;
+}
+
+.receipt-img {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  object-fit: contain;
+  border-radius: 12px;
+  background: var(--cutout);
+}
+
+body.is-nav .dashboard {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  min-height: 0;
+  padding: 8px;
+  gap: 8px;
+}
+
+body.is-nav .gauge,
+body.is-nav .nav-pane {
+  flex: 1 1 0;
+  width: auto;
+  height: 100%;
+  min-width: 0;
+}
+
+@media (orientation: portrait) {
+  .drawer-tools { max-height: 48%; overflow: auto; scrollbar-width: none; }
+
+  body.is-nav .dashboard { flex-direction: column; }
+
+  body.is-nav .gauge,
+  body.is-nav .nav-pane {
+    flex: 1 1 0;
+    height: auto;
+    width: 100%;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 380px) {
+  .nav-maneuver { font-size: 14px; }
+  .nav-actions,
+  .planner-actions { height: 40px; }
+  .planner-actions .skeuo,
+  .nav-actions .skeuo { height: 40px; }
+}
+
 @media (orientation: portrait) {
   .app { max-width: 520px; margin-inline: auto; }
 
@@ -1094,7 +1346,8 @@ body.is-focus .companion:has(#toolFace:not([hidden])) .tool-face {
   .drawer-tools {
     grid-column: 2;
     grid-row: 3;
-    overflow: hidden;
+    overflow: auto;
     justify-content: flex-start;
+    scrollbar-width: none;
   }
 }

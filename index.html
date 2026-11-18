@@ -113,6 +113,33 @@
         </section>
       </aside>
 
+      <section class="nav-pane" id="navPane" hidden>
+        <div class="nav-stage">
+          <div class="nav-map" id="navMap"></div>
+          <canvas class="nav-sketch" id="navSketch" hidden></canvas>
+        </div>
+        <div class="nav-bar">
+          <p class="nav-maneuver" id="navManeuver">Rota</p>
+          <p class="nav-remain" id="navRemain"></p>
+          <p class="nav-costline" id="navCost"></p>
+          <div class="trip-actions nav-actions">
+            <button class="skeuo" id="navStart" type="button">
+              <span class="ico" aria-hidden="true">▶</span>
+              <span>Iniciar</span>
+            </button>
+            <button class="skeuo" id="navPause" type="button" disabled>
+              <span class="ico" aria-hidden="true">❚❚</span>
+              <span id="navPauseLabel">Pausar</span>
+            </button>
+            <button class="skeuo skeuo-stop" id="navFinish" type="button" disabled>
+              <span class="ico" aria-hidden="true">■</span>
+              <span>Finalizar</span>
+            </button>
+          </div>
+          <p class="map-credit" id="navCredit">© OpenStreetMap</p>
+        </div>
+      </section>
+
       <div class="side">
         <section class="plate weather" aria-label="Clima">
           <div class="weather-now">
@@ -142,6 +169,7 @@
               <div class="fine" id="tripAvg">— km/h méd</div>
             </div>
           </div>
+          <button class="trip-cost" id="tripCost" type="button">Defina o veículo</button>
           <div class="trip-actions">
             <button class="skeuo" id="startTrip" type="button">
               <span class="ico" aria-hidden="true">▶</span>
@@ -181,6 +209,7 @@
       <div>
         <h1 id="drawerTitle">Histórico</h1>
         <p class="fine" id="historySummary">Nenhuma viagem salva</p>
+        <p class="fine" id="costTotals"></p>
       </div>
       <button class="skeuo close-drawer" id="closeDrawer" type="button">Fechar</button>
     </header>
@@ -196,6 +225,67 @@
       </div>
     </section>
     <div class="drawer-tools">
+    <section class="vehicle-block" id="vehicleBlock" aria-label="Veículo">
+      <h2>Veículo</h2>
+      <p class="fine">A lista é referência. O consumo que vale é o que você confirma.</p>
+      <label class="field">
+        <span>Modelo</span>
+        <select id="vehicleCatalog"></select>
+      </label>
+      <div class="field-row">
+        <label class="field">
+          <span>Nome</span>
+          <input id="vehicleName" type="text" maxlength="48" placeholder="Meu veículo" autocomplete="off">
+        </label>
+        <label class="field">
+          <span>Tipo</span>
+          <select id="vehicleKind">
+            <option value="carro">Carro</option>
+            <option value="moto">Moto</option>
+          </select>
+        </label>
+      </div>
+      <div class="field-row field-row-2">
+        <label class="field">
+          <span>Combustível</span>
+          <select id="vehicleFuel">
+            <option value="gasolina">Gasolina</option>
+            <option value="etanol">Etanol</option>
+            <option value="diesel">Diesel</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Pessoas</span>
+          <select id="vehiclePeople">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+          </select>
+        </label>
+      </div>
+      <div class="field-row">
+        <label class="field">
+          <span>km/l</span>
+          <input id="vehicleKmL" inputmode="decimal" placeholder="12,5" autocomplete="off">
+        </label>
+        <label class="field">
+          <span>Tanque L</span>
+          <input id="vehicleTank" inputmode="decimal" placeholder="50" autocomplete="off">
+        </label>
+        <label class="field">
+          <span>R$/l</span>
+          <input id="vehiclePrice" inputmode="decimal" placeholder="5,99" autocomplete="off">
+        </label>
+      </div>
+      <label class="field">
+        <span>Litros agora, se souber</span>
+        <input id="vehicleNow" inputmode="decimal" placeholder="Opcional" autocomplete="off">
+      </label>
+      <p class="fine" id="vehicleReadout"></p>
+    </section>
     <section class="plate sim-row">
       <div>
         <div class="kicker">Simulação</div>
@@ -224,6 +314,54 @@
     <div id="mapCanvas"></div>
     <p class="map-credit">© OpenStreetMap</p>
   </div>
+  <div class="route-planner" id="routePlanner" hidden>
+    <header class="drawer-head">
+      <div>
+        <h1>Rota</h1>
+        <p class="fine" id="plannerNote">A busca pede internet uma vez. O traçado fica neste aparelho.</p>
+      </div>
+      <button class="skeuo close-drawer" id="closePlanner" type="button">Fechar</button>
+    </header>
+    <div class="planner-fields">
+      <label class="field">
+        <span>Partida</span>
+        <input id="originInput" type="search" placeholder="Onde estou" autocomplete="off" enterkeyhint="search">
+      </label>
+      <button class="skeuo planner-here" id="useHere" type="button">Usar minha posição</button>
+      <label class="field">
+        <span>Destino</span>
+        <input id="destInput" type="search" placeholder="Para onde" autocomplete="off" enterkeyhint="search">
+      </label>
+      <div class="place-results" id="placeResults"></div>
+    </div>
+    <p class="route-summary" id="routeSummary"></p>
+    <div class="planner-stage">
+      <div id="plannerMap"></div>
+      <canvas id="plannerSketch" hidden></canvas>
+    </div>
+    <div class="planner-actions">
+      <button class="skeuo" id="useRoute" type="button" disabled>Usar esta rota</button>
+      <button class="skeuo" id="clearRoute" type="button">Dispensar</button>
+      <button class="skeuo" id="openGoogle" type="button">Abrir no Google Maps</button>
+    </div>
+    <p class="map-credit">© OpenStreetMap · traçado OSRM</p>
+  </div>
+  <div class="route-map" id="receiptSheet" hidden>
+    <header class="drawer-head">
+      <div>
+        <h1>Recibo</h1>
+        <p class="fine">Imagem para compartilhar. O PDF sai pela impressão.</p>
+      </div>
+      <button class="skeuo close-drawer" id="closeReceipt" type="button">Fechar</button>
+    </header>
+    <img class="receipt-img" id="receiptImg" alt="Recibo da viagem">
+    <div class="planner-actions">
+      <button class="skeuo" id="shareReceipt" type="button">Compartilhar</button>
+      <button class="skeuo" id="pdfReceipt" type="button">PDF</button>
+    </div>
+  </div>
+  <script src="vehicles.js"></script>
+  <script src="receipt.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

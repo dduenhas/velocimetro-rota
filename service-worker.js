@@ -1,12 +1,21 @@
-const CACHE = 'velocimetro-shell-v13';
+const CACHE = 'rota-shell-v1';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './vehicles.js',
+  './receipt.js',
   './manifest.json',
   './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon-512.png',
+  './vendor/leaflet/leaflet.css',
+  './vendor/leaflet/leaflet.js',
+  './vendor/leaflet/images/marker-icon.png',
+  './vendor/leaflet/images/marker-icon-2x.png',
+  './vendor/leaflet/images/marker-shadow.png',
+  './vendor/leaflet/images/layers.png',
+  './vendor/leaflet/images/layers-2x.png'
 ];
 
 async function storeAsset(cache, asset) {
