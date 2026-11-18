@@ -1,4 +1,4 @@
-const CACHE = 'rota-shell-v4';
+const CACHE = 'rota-shell-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -43,6 +43,11 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))
     ).then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
+      .then((windowClients) => Promise.all(windowClients.map((client) => {
+        if (!client.navigate) return null;
+        return client.navigate(client.url).catch(() => null);
+      })))
   );
 });
 
@@ -52,12 +57,21 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin || event.request.method !== 'GET') return;
 
   if (event.request.mode === 'navigate') {
-    event.respondWith(
-      caches.match(event.request).then((hit) => hit || caches.match('./index.html')).then((hit) => {
-        if (hit) return hit;
-        return fetch(event.request);
-      })
-    );
+    event.respondWith((async () => {
+      try {
+        const response = await fetch(event.request);
+        if (response && response.ok) {
+          const cache = await caches.open(CACHE);
+          await cache.put(event.request, response.clone());
+          await cache.put('./index.html', response.clone());
+        }
+        return response;
+      } catch (error) {
+        return (await caches.match(event.request))
+          || (await caches.match('./index.html'))
+          || (await caches.match('./'));
+      }
+    })());
     return;
   }
 

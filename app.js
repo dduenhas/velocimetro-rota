@@ -721,17 +721,15 @@
   }
 
   function labelBacks() {
-    var prev = screenStack.length > 1 ? screenStack[screenStack.length - 2] : '';
-    var label = prev === 'screenAreas' ? 'Áreas' : (prev ? 'Voltar' : 'Painel');
-    document.querySelectorAll('.screen-back').forEach(function (button) {
-      button.textContent = '‹ ' + label;
+    document.querySelectorAll('.screen-back:not([data-fixed])').forEach(function (button) {
+      button.textContent = '‹ Painel';
     });
   }
 
   function presentTop() {
     var id = screenStack[screenStack.length - 1] || '';
     var onDeck = id && id !== 'route';
-    ['screenAreas', 'screenHistory', 'screenVehicle', 'screenSettings'].forEach(function (sid) {
+    ['screenHistory', 'screenVehicle', 'screenSettings'].forEach(function (sid) {
       var node = $(sid);
       if (node) node.hidden = sid !== id;
     });
@@ -740,7 +738,7 @@
     else hidePlannerMap();
     document.body.style.overflow = id ? 'hidden' : '';
     labelBacks();
-    if (id === 'screenHistory' || id === 'screenAreas') renderHistory();
+    if (id === 'screenHistory') renderHistory();
   }
 
   function openRoot(id) {
@@ -799,7 +797,7 @@
   }
 
   function openDrawer() {
-    openRoot('screenAreas');
+    openRoot('screenHistory');
   }
 
   function closeDrawer() {
@@ -835,28 +833,25 @@
       when.textContent = formatWhen(trip.startedAt) + ' → ' + formatClock(trip.endedAt);
       var dist = document.createElement('p');
       dist.className = 'trip-km';
-      var detail = formatKm(trip.distanceKm) + ' km';
-      if (trip.movingMs) detail += ' · ' + formatSpan(trip.movingMs);
-      dist.textContent = detail;
+      dist.textContent = formatKm(trip.distanceKm) + ' km';
+      if (trip.movingMs) {
+        var duration = document.createElement('small');
+        duration.textContent = '· ' + formatSpan(trip.movingMs);
+        dist.appendChild(duration);
+      }
       copy.append(when, dist);
       if (trip.cost) {
         var money = document.createElement('p');
-        money.className = 'trip-coords';
+        money.className = 'trip-costline';
         money.textContent = formatBRL(trip.cost.totalCents) + shareSuffix(trip.cost);
         copy.appendChild(money);
       }
-      var note = document.createElement('p');
-      note.className = 'trip-coords';
-      if (trip.track && trip.track.length >= 2) {
-        var from = trip.start ? trip.start.lat.toFixed(3) + ', ' + trip.start.lon.toFixed(3) : '—';
-        var to = trip.end ? trip.end.lat.toFixed(3) + ', ' + trip.end.lon.toFixed(3) : from;
-        note.textContent = from + ' → ' + to;
-      } else if (trip.simulated) {
-        note.textContent = 'Simulação não grava o caminho';
-      } else {
-        note.textContent = 'Sem percurso de GPS';
+      if (trip.simulated || !(trip.track && trip.track.length >= 2)) {
+        var note = document.createElement('p');
+        note.className = 'trip-note';
+        note.textContent = trip.simulated ? 'Simulação não grava o caminho' : 'Sem percurso de GPS';
+        copy.appendChild(note);
       }
-      copy.appendChild(note);
       var remove = document.createElement('button');
       remove.type = 'button';
       remove.className = 'skeuo icon-btn';
@@ -1452,22 +1447,10 @@
 
   function renderAreaStatus() {
     var count = state.history ? state.history.length : 0;
-    var countLabel = count
-      ? count + (count === 1 ? ' viagem' : ' viagens')
-      : 'Nenhuma viagem';
-    if (els.historyHint) els.historyHint.textContent = countLabel;
-    if (els.areaHistory) els.areaHistory.textContent = countLabel;
-    var vehicle = state.vehicle || {};
-    if (els.areaVehicle) {
-      var rate = parseNum(vehicle.kmPerLiter);
-      els.areaVehicle.textContent = (vehicle.name || 'Sem nome') + (rate > 0 ? ' · ' + formatKm(rate) + ' km/l' : '');
-    }
-    if (els.areaRoute) {
-      var dest = state.route && state.route.destination && state.route.destination.label;
-      els.areaRoute.textContent = dest || 'Nenhuma rota armada';
-    }
-    if (els.areaTheme) {
-      els.areaTheme.textContent = 'Tema ' + (THEMES[state.theme] ? THEMES[state.theme].label : 'Âmbar');
+    if (els.historyHint) {
+      els.historyHint.textContent = count
+        ? count + (count === 1 ? ' viagem' : ' viagens')
+        : 'Nenhuma viagem';
     }
   }
 
@@ -2228,10 +2211,6 @@
     els.historyList = $('historyList');
     els.historySummary = $('historySummary');
     els.historyHint = $('historyHint');
-    els.areaHistory = $('areaHistory');
-    els.areaVehicle = $('areaVehicle');
-    els.areaRoute = $('areaRoute');
-    els.areaTheme = $('areaTheme');
     els.periodDayKm = $('periodDayKm');
     els.periodDayCost = $('periodDayCost');
     els.periodWeekKm = $('periodWeekKm');
@@ -2366,17 +2345,10 @@
       $(id).addEventListener('change', readVehicleForm);
     });
     $('openSpotify').addEventListener('click', function () { openExternal('spotify'); });
-    $('openHistory').addEventListener('click', function () { openRoot('screenAreas'); });
+    $('openHistory').addEventListener('click', function () { openRoot('screenHistory'); });
     $('themeChip').addEventListener('click', function () { openRoot('screenSettings'); });
-    document.querySelectorAll('.screen-back').forEach(function (button) {
+    document.querySelectorAll('.screen-back:not([data-fixed])').forEach(function (button) {
       button.addEventListener('click', backScreen);
-    });
-    document.querySelectorAll('[data-open]').forEach(function (button) {
-      button.addEventListener('click', function () {
-        var target = button.getAttribute('data-open');
-        if (target === 'route') openPlanner();
-        else openScreen(target);
-      });
     });
     $('demoSwitch').addEventListener('click', function () { setDemo(!state.demo); tap(); });
     document.querySelectorAll('[data-theme-choice]').forEach(function (chip) {
@@ -2415,6 +2387,15 @@
     else startGps();
   }
 
+  var shellReload = false;
+  if ('serviceWorker' in navigator) {
+    var hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (!hadController || shellReload) return;
+      shellReload = true;
+      location.reload();
+    });
+  }
   cacheShell();
   document.addEventListener('pointerdown', enterImmersive, true);
   document.addEventListener('visibilitychange', function () {

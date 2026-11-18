@@ -200,7 +200,7 @@
         </div>
 
         <button class="skeuo history-open" id="openHistory" type="button">
-          <span class="launcher-copy"><strong>Áreas</strong><small id="historyHint">Nenhuma viagem</small></span>
+          <span class="launcher-copy"><strong>Histórico</strong><small id="historyHint">Nenhuma viagem</small></span>
           <span class="chevron" aria-hidden="true">›</span>
         </button>
       </div>
@@ -208,42 +208,9 @@
   </div>
 
   <div class="deck" id="deck" hidden>
-    <section class="screen" id="screenAreas" hidden aria-labelledby="areasTitle">
-      <header class="screen-bar">
-        <button class="skeuo screen-back" type="button">Painel</button>
-        <h1 id="areasTitle">Áreas</h1>
-        <span class="screen-bar-end" aria-hidden="true"></span>
-      </header>
-      <div class="screen-body">
-        <div class="area-list">
-          <button class="plate area-plate" type="button" data-open="screenHistory">
-            <span class="area-pip" aria-hidden="true"></span>
-            <span class="area-copy"><strong>Histórico</strong><small id="areaHistory">Nenhuma viagem</small></span>
-            <span class="chevron" aria-hidden="true">›</span>
-          </button>
-          <button class="plate area-plate" type="button" data-open="screenVehicle">
-            <span class="area-pip" aria-hidden="true"></span>
-            <span class="area-copy"><strong>Veículo</strong><small id="areaVehicle">Sem nome</small></span>
-            <span class="chevron" aria-hidden="true">›</span>
-          </button>
-          <button class="plate area-plate" type="button" data-open="route">
-            <span class="area-pip" aria-hidden="true"></span>
-            <span class="area-copy"><strong>Rota</strong><small id="areaRoute">Nenhuma rota armada</small></span>
-            <span class="chevron" aria-hidden="true">›</span>
-          </button>
-          <button class="plate area-plate" type="button" data-open="screenSettings">
-            <span class="area-pip" aria-hidden="true"></span>
-            <span class="area-copy"><strong>Ajustes</strong><small id="areaTheme">Tema Âmbar</small></span>
-            <span class="chevron" aria-hidden="true">›</span>
-          </button>
-        </div>
-        <p class="screen-foot">Tudo fica neste aparelho.</p>
-      </div>
-    </section>
-
     <section class="screen" id="screenHistory" hidden aria-labelledby="historyTitle">
       <header class="screen-bar">
-        <button class="skeuo screen-back" type="button">Áreas</button>
+        <button class="skeuo screen-back" type="button">‹ Painel</button>
         <h1 id="historyTitle">Histórico</h1>
         <span class="screen-bar-end" aria-hidden="true"></span>
       </header>
@@ -272,7 +239,7 @@
 
     <section class="screen" id="screenVehicle" hidden aria-labelledby="vehicleTitle">
       <header class="screen-bar">
-        <button class="skeuo screen-back" type="button">Áreas</button>
+        <button class="skeuo screen-back" type="button">‹ Painel</button>
         <h1 id="vehicleTitle">Veículo</h1>
         <span class="screen-bar-end" aria-hidden="true"></span>
       </header>
@@ -315,7 +282,7 @@
           </label>
           <p class="fine span-2">1 não divide. De 2 a 6, o valor fecha em centavos.</p>
           <label class="field span-2">
-            <span>Consumo</span>
+            <span>Consumo, km/l</span>
             <input id="vehicleKmL" inputmode="decimal" placeholder="12,5" autocomplete="off">
           </label>
           <label class="field">
@@ -338,7 +305,7 @@
 
     <section class="screen" id="screenSettings" hidden aria-labelledby="settingsTitle">
       <header class="screen-bar">
-        <button class="skeuo screen-back" type="button">Áreas</button>
+        <button class="skeuo screen-back" type="button">‹ Painel</button>
         <h1 id="settingsTitle">Ajustes</h1>
         <span class="screen-bar-end" aria-hidden="true"></span>
       </header>
@@ -374,13 +341,12 @@
     </section>
   </div>
   <div class="route-map" id="routeMap" hidden>
-    <header class="drawer-head">
-      <div>
-        <h1>Percurso</h1>
-        <p class="fine" id="mapMeta"></p>
-      </div>
-      <button class="skeuo close-drawer" id="closeMap" type="button">Fechar</button>
+    <header class="screen-bar">
+      <button class="skeuo screen-back" id="closeMap" type="button" data-fixed>‹ Histórico</button>
+      <h1>Percurso</h1>
+      <span class="screen-bar-end" aria-hidden="true"></span>
     </header>
+    <p class="fine" id="mapMeta"></p>
     <p class="map-note" id="mapNote" hidden></p>
     <div id="mapCanvas"></div>
     <p class="map-credit">© OpenStreetMap</p>
@@ -419,13 +385,12 @@
     <p class="map-credit">© OpenStreetMap · traçado OSRM</p>
   </div>
   <div class="route-map" id="receiptSheet" hidden>
-    <header class="drawer-head">
-      <div>
-        <h1>Recibo</h1>
-        <p class="fine">Imagem para compartilhar. O PDF sai pela impressão.</p>
-      </div>
-      <button class="skeuo close-drawer" id="closeReceipt" type="button">Fechar</button>
+    <header class="screen-bar">
+      <button class="skeuo screen-back" id="closeReceipt" type="button" data-fixed>‹ Histórico</button>
+      <h1>Recibo</h1>
+      <span class="screen-bar-end" aria-hidden="true"></span>
     </header>
+    <p class="fine">Imagem para compartilhar. O PDF sai pela impressão.</p>
     <img class="receipt-img" id="receiptImg" alt="Recibo da viagem">
     <div class="planner-actions">
       <button class="skeuo" id="shareReceipt" type="button">Compartilhar</button>
