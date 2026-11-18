@@ -704,6 +704,77 @@
       chip.setAttribute('aria-pressed', chip.getAttribute('data-theme-choice') === name ? 'true' : 'false');
     });
     writeStore('rota.theme', name);
+    renderAreaStatus();
+  }
+
+  var screenStack = [];
+
+  function hidePlannerMap() {
+    if (!els.routePlanner) return;
+    els.routePlanner.hidden = true;
+    els.placeResults.replaceChildren();
+    if (plannerLeaflet) {
+      plannerLeaflet.remove();
+      plannerLeaflet = null;
+      plannerLine = null;
+    }
+  }
+
+  function labelBacks() {
+    var prev = screenStack.length > 1 ? screenStack[screenStack.length - 2] : '';
+    var label = prev === 'screenAreas' ? 'Áreas' : (prev ? 'Voltar' : 'Painel');
+    document.querySelectorAll('.screen-back').forEach(function (button) {
+      button.textContent = '‹ ' + label;
+    });
+  }
+
+  function presentTop() {
+    var id = screenStack[screenStack.length - 1] || '';
+    var onDeck = id && id !== 'route';
+    ['screenAreas', 'screenHistory', 'screenVehicle', 'screenSettings'].forEach(function (sid) {
+      var node = $(sid);
+      if (node) node.hidden = sid !== id;
+    });
+    if (els.deck) els.deck.hidden = !onDeck;
+    if (id === 'route') els.routePlanner.hidden = false;
+    else hidePlannerMap();
+    document.body.style.overflow = id ? 'hidden' : '';
+    labelBacks();
+    if (id === 'screenHistory' || id === 'screenAreas') renderHistory();
+  }
+
+  function openRoot(id) {
+    hidePlannerMap();
+    screenStack = [id];
+    presentTop();
+    tap();
+  }
+
+  function openScreen(id) {
+    if (screenStack[screenStack.length - 1] !== id) screenStack.push(id);
+    presentTop();
+    tap();
+  }
+
+  function closeAllScreens() {
+    screenStack = [];
+    hidePlannerMap();
+    if (els.deck) els.deck.hidden = true;
+    document.body.style.overflow = '';
+  }
+
+  function backScreen() {
+    if (els.receiptSheet && !els.receiptSheet.hidden) { closeReceipt(); return; }
+    if (els.routeMap && !els.routeMap.hidden) { closeRoute(); return; }
+    if (!screenStack.length) return;
+    var leaving = screenStack.pop();
+    if (leaving === 'route') hidePlannerMap();
+    if (!screenStack.length) {
+      if (els.deck) els.deck.hidden = true;
+      document.body.style.overflow = '';
+      return;
+    }
+    presentTop();
   }
 
   function setFocus(mode) {
@@ -728,16 +799,11 @@
   }
 
   function openDrawer() {
-    els.scrim.hidden = false;
-    els.drawer.hidden = false;
-    document.body.style.overflow = 'hidden';
-    renderHistory();
+    openRoot('screenAreas');
   }
 
   function closeDrawer() {
-    els.scrim.hidden = true;
-    els.drawer.hidden = true;
-    document.body.style.overflow = '';
+    closeAllScreens();
   }
 
   function renderHistory() {
@@ -749,12 +815,16 @@
       ? state.history.length + (state.history.length === 1 ? ' viagem' : ' viagens') + ' · ' + formatKm(total) + ' km'
       : 'Nenhuma viagem salva';
     els.historySummary.textContent = countLabel;
-    els.historyHint.textContent = state.history.length
-      ? state.history.length + (state.history.length === 1 ? ' viagem' : ' viagens')
-      : 'Nenhuma';
+    renderAreaStatus();
     renderCostTotals();
 
-    if (!state.history.length) return;
+    if (!state.history.length) {
+      var empty = document.createElement('p');
+      empty.className = 'empty';
+      empty.textContent = 'Nenhuma viagem neste aparelho.';
+      list.appendChild(empty);
+      return;
+    }
 
     state.history.forEach(function (trip) {
       var row = document.createElement('article');
@@ -1345,7 +1415,7 @@
     return midnight - delta * 86400000;
   }
 
-  function sumPeriod(kind) {
+  function periodStats(kind) {
     var now = Date.now();
     var km = 0;
     var cents = 0;
@@ -1360,12 +1430,45 @@
       km += trip.distanceKm || 0;
       if (trip.cost) cents += trip.cost.totalCents || 0;
     });
-    return formatKm(km) + ' km · ' + formatBRL(cents);
+    return { km: km, cents: cents };
+  }
+
+  function sumPeriod(kind) {
+    var stats = periodStats(kind);
+    return formatKm(stats.km) + ' km · ' + formatBRL(stats.cents);
   }
 
   function renderCostTotals() {
-    if (!els.costTotals) return;
-    els.costTotals.textContent = 'Hoje ' + sumPeriod('day') + ' · Semana ' + sumPeriod('week') + ' · Mês ' + sumPeriod('month');
+    var day = periodStats('day');
+    var week = periodStats('week');
+    var month = periodStats('month');
+    if (els.periodDayKm) els.periodDayKm.textContent = formatKm(day.km) + ' km';
+    if (els.periodDayCost) els.periodDayCost.textContent = formatBRL(day.cents);
+    if (els.periodWeekKm) els.periodWeekKm.textContent = formatKm(week.km) + ' km';
+    if (els.periodWeekCost) els.periodWeekCost.textContent = formatBRL(week.cents);
+    if (els.periodMonthKm) els.periodMonthKm.textContent = formatKm(month.km) + ' km';
+    if (els.periodMonthCost) els.periodMonthCost.textContent = formatBRL(month.cents);
+  }
+
+  function renderAreaStatus() {
+    var count = state.history ? state.history.length : 0;
+    var countLabel = count
+      ? count + (count === 1 ? ' viagem' : ' viagens')
+      : 'Nenhuma viagem';
+    if (els.historyHint) els.historyHint.textContent = countLabel;
+    if (els.areaHistory) els.areaHistory.textContent = countLabel;
+    var vehicle = state.vehicle || {};
+    if (els.areaVehicle) {
+      var rate = parseNum(vehicle.kmPerLiter);
+      els.areaVehicle.textContent = (vehicle.name || 'Sem nome') + (rate > 0 ? ' · ' + formatKm(rate) + ' km/l' : '');
+    }
+    if (els.areaRoute) {
+      var dest = state.route && state.route.destination && state.route.destination.label;
+      els.areaRoute.textContent = dest || 'Nenhuma rota armada';
+    }
+    if (els.areaTheme) {
+      els.areaTheme.textContent = 'Tema ' + (THEMES[state.theme] ? THEMES[state.theme].label : 'Âmbar');
+    }
   }
 
   function renderVehicleReadout() {
@@ -1385,6 +1488,7 @@
     }
     if (!bits.length) bits.push(vehicleReady() ? 'Pronto para calcular o trecho.' : 'Informe km/l e o preço do litro.');
     els.vehicleReadout.textContent = bits.join(' · ');
+    renderAreaStatus();
   }
 
   function readVehicleForm() {
@@ -1979,7 +2083,6 @@
   }
 
   function openPlanner() {
-    els.routePlanner.hidden = false;
     state.draft = {
       origin: state.route ? state.route.origin : null,
       destination: state.route ? state.route.destination : null,
@@ -1991,26 +2094,23 @@
     els.useRoute.disabled = !state.draft.route;
     els.routeSummary.textContent = state.draft.route ? routeSummaryText(state.draft.route) : '';
     els.plannerNote.textContent = 'A busca pede internet uma vez. O traçado fica neste aparelho.';
+    if (screenStack[screenStack.length - 1] !== 'route') screenStack.push('route');
+    presentTop();
     if (state.draft.route) showPlannerMap(state.draft.route);
     tap();
   }
 
   function closePlanner() {
-    els.routePlanner.hidden = true;
-    els.placeResults.replaceChildren();
-    if (plannerLeaflet) {
-      plannerLeaflet.remove();
-      plannerLeaflet = null;
-      plannerLine = null;
-    }
+    backScreen();
   }
 
   function useArmedRoute() {
     if (!state.draft.route) return;
     state.route = state.draft.route;
     writeStore('rota.route', state.route);
-    closePlanner();
+    closeAllScreens();
     setFocus(MODE_NAV);
+    renderAreaStatus();
   }
 
   function clearArmedRoute() {
@@ -2020,6 +2120,7 @@
     els.useRoute.disabled = true;
     els.routeSummary.textContent = '';
     if (state.focus === MODE_NAV) setFocus(0);
+    renderAreaStatus();
     tap();
   }
 
@@ -2123,15 +2224,23 @@
     els.mapMeta = $('mapMeta');
     els.mapNote = $('mapNote');
     els.themeChip = $('themeChip');
-    els.scrim = $('scrim');
-    els.drawer = $('drawer');
+    els.deck = $('deck');
     els.historyList = $('historyList');
     els.historySummary = $('historySummary');
     els.historyHint = $('historyHint');
+    els.areaHistory = $('areaHistory');
+    els.areaVehicle = $('areaVehicle');
+    els.areaRoute = $('areaRoute');
+    els.areaTheme = $('areaTheme');
+    els.periodDayKm = $('periodDayKm');
+    els.periodDayCost = $('periodDayCost');
+    els.periodWeekKm = $('periodWeekKm');
+    els.periodWeekCost = $('periodWeekCost');
+    els.periodMonthKm = $('periodMonthKm');
+    els.periodMonthCost = $('periodMonthCost');
     els.demoSwitch = $('demoSwitch');
     els.installBtn = $('installBtn');
     els.tripCost = $('tripCost');
-    els.costTotals = $('costTotals');
     els.navPane = $('navPane');
     els.navMap = $('navMap');
     els.navSketch = $('navSketch');
@@ -2221,7 +2330,6 @@
     $('openMaps').addEventListener('click', function () { setFocus(MODE_NAV); tap(); });
     $('navPick').addEventListener('click', openPlanner);
     $('navSwap').addEventListener('click', openPlanner);
-    $('closePlanner').addEventListener('click', closePlanner);
     $('useHere').addEventListener('click', useMyPosition);
     $('useRoute').addEventListener('click', useArmedRoute);
     $('clearRoute').addEventListener('click', clearArmedRoute);
@@ -2241,10 +2349,7 @@
     $('navStart').addEventListener('click', startTrip);
     $('navPause').addEventListener('click', pauseTrip);
     $('navFinish').addEventListener('click', finishTrip);
-    $('tripCost').addEventListener('click', function () {
-      openDrawer();
-      if (els.vehicleBlock) els.vehicleBlock.scrollIntoView({ block: 'nearest' });
-    });
+    $('tripCost').addEventListener('click', function () { openRoot('screenVehicle'); });
     $('closeReceipt').addEventListener('click', closeReceipt);
     $('shareReceipt').addEventListener('click', function () {
       if (state.receiptCanvas && window.RotaReceipt) window.RotaReceipt.share(state.receiptCanvas);
@@ -2261,10 +2366,18 @@
       $(id).addEventListener('change', readVehicleForm);
     });
     $('openSpotify').addEventListener('click', function () { openExternal('spotify'); });
-    $('openHistory').addEventListener('click', openDrawer);
-    $('themeChip').addEventListener('click', openDrawer);
-    $('closeDrawer').addEventListener('click', closeDrawer);
-    $('scrim').addEventListener('click', closeDrawer);
+    $('openHistory').addEventListener('click', function () { openRoot('screenAreas'); });
+    $('themeChip').addEventListener('click', function () { openRoot('screenSettings'); });
+    document.querySelectorAll('.screen-back').forEach(function (button) {
+      button.addEventListener('click', backScreen);
+    });
+    document.querySelectorAll('[data-open]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var target = button.getAttribute('data-open');
+        if (target === 'route') openPlanner();
+        else openScreen(target);
+      });
+    });
     $('demoSwitch').addEventListener('click', function () { setDemo(!state.demo); tap(); });
     document.querySelectorAll('[data-theme-choice]').forEach(function (chip) {
       chip.addEventListener('click', function () {
@@ -2274,11 +2387,11 @@
     });
     document.addEventListener('keydown', function (event) {
       if (event.key !== 'Escape') return;
-      if (els.receiptSheet && !els.receiptSheet.hidden) closeReceipt();
-      else if (els.routePlanner && !els.routePlanner.hidden) closePlanner();
-      else if (!els.drawer.hidden) closeDrawer();
-      else if (els.routeMap && !els.routeMap.hidden) closeRoute();
-      else if (state.focus) setFocus(0);
+      if ((els.receiptSheet && !els.receiptSheet.hidden) || (els.routeMap && !els.routeMap.hidden) || screenStack.length) {
+        backScreen();
+        return;
+      }
+      if (state.focus) setFocus(0);
     });
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'visible') requestWake();

@@ -200,112 +200,179 @@
         </div>
 
         <button class="skeuo history-open" id="openHistory" type="button">
-          <span class="launcher-copy"><strong>Histórico</strong><small id="historyHint">Nenhuma viagem salva</small></span>
+          <span class="launcher-copy"><strong>Áreas</strong><small id="historyHint">Nenhuma viagem</small></span>
           <span class="chevron" aria-hidden="true">›</span>
         </button>
       </div>
     </main>
   </div>
 
-  <div class="scrim" id="scrim" hidden></div>
-  <aside class="drawer" id="drawer" hidden aria-labelledby="drawerTitle">
-    <header class="drawer-head">
-      <div>
-        <h1 id="drawerTitle">Histórico</h1>
+  <div class="deck" id="deck" hidden>
+    <section class="screen" id="screenAreas" hidden aria-labelledby="areasTitle">
+      <header class="screen-bar">
+        <button class="skeuo screen-back" type="button">Painel</button>
+        <h1 id="areasTitle">Áreas</h1>
+        <span class="screen-bar-end" aria-hidden="true"></span>
+      </header>
+      <div class="screen-body">
+        <div class="area-list">
+          <button class="plate area-plate" type="button" data-open="screenHistory">
+            <span class="area-pip" aria-hidden="true"></span>
+            <span class="area-copy"><strong>Histórico</strong><small id="areaHistory">Nenhuma viagem</small></span>
+            <span class="chevron" aria-hidden="true">›</span>
+          </button>
+          <button class="plate area-plate" type="button" data-open="screenVehicle">
+            <span class="area-pip" aria-hidden="true"></span>
+            <span class="area-copy"><strong>Veículo</strong><small id="areaVehicle">Sem nome</small></span>
+            <span class="chevron" aria-hidden="true">›</span>
+          </button>
+          <button class="plate area-plate" type="button" data-open="route">
+            <span class="area-pip" aria-hidden="true"></span>
+            <span class="area-copy"><strong>Rota</strong><small id="areaRoute">Nenhuma rota armada</small></span>
+            <span class="chevron" aria-hidden="true">›</span>
+          </button>
+          <button class="plate area-plate" type="button" data-open="screenSettings">
+            <span class="area-pip" aria-hidden="true"></span>
+            <span class="area-copy"><strong>Ajustes</strong><small id="areaTheme">Tema Âmbar</small></span>
+            <span class="chevron" aria-hidden="true">›</span>
+          </button>
+        </div>
+        <p class="screen-foot">Tudo fica neste aparelho.</p>
+      </div>
+    </section>
+
+    <section class="screen" id="screenHistory" hidden aria-labelledby="historyTitle">
+      <header class="screen-bar">
+        <button class="skeuo screen-back" type="button">Áreas</button>
+        <h1 id="historyTitle">Histórico</h1>
+        <span class="screen-bar-end" aria-hidden="true"></span>
+      </header>
+      <div class="screen-body">
+        <div class="period-row">
+          <article class="plate period-plate">
+            <span>Hoje</span>
+            <strong id="periodDayKm">0,0 km</strong>
+            <small id="periodDayCost">R$ 0,00</small>
+          </article>
+          <article class="plate period-plate">
+            <span>Semana</span>
+            <strong id="periodWeekKm">0,0 km</strong>
+            <small id="periodWeekCost">R$ 0,00</small>
+          </article>
+          <article class="plate period-plate">
+            <span>Mês</span>
+            <strong id="periodMonthKm">0,0 km</strong>
+            <small id="periodMonthCost">R$ 0,00</small>
+          </article>
+        </div>
         <p class="fine" id="historySummary">Nenhuma viagem salva</p>
-        <p class="fine" id="costTotals"></p>
-      </div>
-      <button class="skeuo close-drawer" id="closeDrawer" type="button">Fechar</button>
-    </header>
-    <div class="history-list" id="historyList"></div>
-    <section class="drawer-block themes-block" aria-label="Tema">
-      <h2>Tema</h2>
-      <div class="themes" id="themes">
-        <button type="button" data-theme-choice="amber">Âmbar</button>
-        <button type="button" data-theme-choice="stealth">Stealth</button>
-        <button type="button" data-theme-choice="red">Vermelho</button>
-        <button type="button" data-theme-choice="daylight">Dia</button>
-        <button type="button" data-theme-choice="sunlight">Sol</button>
+        <div class="history-list" id="historyList"></div>
       </div>
     </section>
-    <div class="drawer-tools">
-    <section class="vehicle-block" id="vehicleBlock" aria-label="Veículo">
-      <h2>Veículo</h2>
-      <p class="fine">A lista é referência. O consumo que vale é o que você confirma.</p>
-      <label class="field">
-        <span>Modelo</span>
-        <select id="vehicleCatalog"></select>
-      </label>
-      <div class="field-row">
-        <label class="field">
-          <span>Nome</span>
-          <input id="vehicleName" type="text" maxlength="48" placeholder="Meu veículo" autocomplete="off">
-        </label>
-        <label class="field">
-          <span>Tipo</span>
-          <select id="vehicleKind">
-            <option value="carro">Carro</option>
-            <option value="moto">Moto</option>
-          </select>
-        </label>
+
+    <section class="screen" id="screenVehicle" hidden aria-labelledby="vehicleTitle">
+      <header class="screen-bar">
+        <button class="skeuo screen-back" type="button">Áreas</button>
+        <h1 id="vehicleTitle">Veículo</h1>
+        <span class="screen-bar-end" aria-hidden="true"></span>
+      </header>
+      <div class="screen-body">
+        <section class="vehicle-block" id="vehicleBlock" aria-label="Veículo">
+          <label class="field span-2">
+            <span>Modelo</span>
+            <select id="vehicleCatalog"></select>
+          </label>
+          <p class="fine span-2">A lista é referência. O consumo que vale é o que você confirma.</p>
+          <label class="field span-2">
+            <span>Nome</span>
+            <input id="vehicleName" type="text" maxlength="48" placeholder="Meu veículo" autocomplete="off">
+          </label>
+          <label class="field">
+            <span>Tipo</span>
+            <select id="vehicleKind">
+              <option value="carro">Carro</option>
+              <option value="moto">Moto</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Combustível</span>
+            <select id="vehicleFuel">
+              <option value="gasolina">Gasolina</option>
+              <option value="etanol">Etanol</option>
+              <option value="diesel">Diesel</option>
+            </select>
+          </label>
+          <label class="field span-2">
+            <span>Pessoas no rateio</span>
+            <select id="vehiclePeople">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+            </select>
+          </label>
+          <p class="fine span-2">1 não divide. De 2 a 6, o valor fecha em centavos.</p>
+          <label class="field span-2">
+            <span>Consumo</span>
+            <input id="vehicleKmL" inputmode="decimal" placeholder="12,5" autocomplete="off">
+          </label>
+          <label class="field">
+            <span>Tanque, litros</span>
+            <input id="vehicleTank" inputmode="decimal" placeholder="50" autocomplete="off">
+          </label>
+          <label class="field">
+            <span>Preço por litro</span>
+            <input id="vehiclePrice" inputmode="decimal" placeholder="5,99" autocomplete="off">
+          </label>
+          <label class="field span-2">
+            <span>Litros agora, se souber</span>
+            <input id="vehicleNow" inputmode="decimal" placeholder="Opcional" autocomplete="off">
+          </label>
+          <p class="plate vehicle-readout span-2" id="vehicleReadout"></p>
+          <p class="screen-foot span-2">Vale na próxima viagem.</p>
+        </section>
       </div>
-      <div class="field-row field-row-2">
-        <label class="field">
-          <span>Combustível</span>
-          <select id="vehicleFuel">
-            <option value="gasolina">Gasolina</option>
-            <option value="etanol">Etanol</option>
-            <option value="diesel">Diesel</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>Pessoas</span>
-          <select id="vehiclePeople">
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-            <option value="6">6</option>
-          </select>
-        </label>
-      </div>
-      <div class="field-row">
-        <label class="field">
-          <span>km/l</span>
-          <input id="vehicleKmL" inputmode="decimal" placeholder="12,5" autocomplete="off">
-        </label>
-        <label class="field">
-          <span>Tanque L</span>
-          <input id="vehicleTank" inputmode="decimal" placeholder="50" autocomplete="off">
-        </label>
-        <label class="field">
-          <span>R$/l</span>
-          <input id="vehiclePrice" inputmode="decimal" placeholder="5,99" autocomplete="off">
-        </label>
-      </div>
-      <label class="field">
-        <span>Litros agora, se souber</span>
-        <input id="vehicleNow" inputmode="decimal" placeholder="Opcional" autocomplete="off">
-      </label>
-      <p class="fine" id="vehicleReadout"></p>
     </section>
-    <section class="plate sim-row">
-      <div>
-        <div class="kicker">Simulação</div>
-        <p>Testar na mesa sem GPS</p>
+
+    <section class="screen" id="screenSettings" hidden aria-labelledby="settingsTitle">
+      <header class="screen-bar">
+        <button class="skeuo screen-back" type="button">Áreas</button>
+        <h1 id="settingsTitle">Ajustes</h1>
+        <span class="screen-bar-end" aria-hidden="true"></span>
+      </header>
+      <div class="screen-body settings-body">
+        <div>
+          <p class="kicker">Tema</p>
+          <div class="themes" id="themes">
+            <button type="button" data-theme-choice="amber"><strong>Âmbar</strong><small>Painel noturno</small></button>
+            <button type="button" data-theme-choice="stealth"><strong>Stealth</strong><small>Quase apagado</small></button>
+            <button type="button" data-theme-choice="red"><strong>Vermelho</strong><small>Alerta</small></button>
+            <button type="button" data-theme-choice="daylight"><strong>Dia</strong><small>Fundo claro</small></button>
+            <button type="button" data-theme-choice="sunlight"><strong>Sol</strong><small>Máximo contraste</small></button>
+          </div>
+        </div>
+        <div class="settings-side">
+          <section class="plate sim-row">
+            <div>
+              <div class="kicker">Simulação</div>
+              <p>Percorre uma rota de exemplo sem GPS</p>
+            </div>
+            <button class="switch" id="demoSwitch" type="button" role="switch" aria-checked="false">
+              <span class="switch-knob" aria-hidden="true"></span>
+              <span class="switch-text">Off</span>
+            </button>
+          </section>
+          <section class="plate install-plate">
+            <div class="kicker">Neste aparelho</div>
+            <p class="install-note" id="installNote">Android (Chrome): menu Instalar app. iPhone (Safari): Compartilhar, Adicionar à Tela de Início.</p>
+            <button class="skeuo install-btn" id="installBtn" type="button" hidden>Instalar</button>
+          </section>
+        </div>
       </div>
-      <button class="switch" id="demoSwitch" type="button" role="switch" aria-checked="false">
-        <span class="switch-knob" aria-hidden="true"></span>
-        <span class="switch-text">Off</span>
-      </button>
     </section>
-    <p class="install-note" id="installNote">
-      Android (Chrome): menu Instalar app. iPhone (Safari): Compartilhar, Adicionar à Tela de Início.
-    </p>
-    <button class="skeuo install-btn" id="installBtn" type="button" hidden>Instalar</button>
-    </div>
-  </aside>
+  </div>
   <div class="route-map" id="routeMap" hidden>
     <header class="drawer-head">
       <div>
@@ -319,14 +386,13 @@
     <p class="map-credit">© OpenStreetMap</p>
   </div>
   <div class="route-planner" id="routePlanner" hidden>
-    <header class="drawer-head">
-      <div>
-        <h1>Rota</h1>
-        <p class="fine" id="plannerNote">A busca pede internet uma vez. O traçado fica neste aparelho.</p>
-      </div>
-      <button class="skeuo close-drawer" id="closePlanner" type="button">Fechar</button>
+    <header class="screen-bar">
+      <button class="skeuo screen-back" id="closePlanner" type="button">Painel</button>
+      <h1>Rota</h1>
+      <span class="screen-bar-end" aria-hidden="true"></span>
     </header>
     <div class="planner-fields">
+      <p class="fine" id="plannerNote">A busca pede internet uma vez. O traçado fica neste aparelho.</p>
       <label class="field">
         <span>Partida</span>
         <input id="originInput" type="search" placeholder="Onde estou" autocomplete="off" enterkeyhint="search">
@@ -337,16 +403,18 @@
         <input id="destInput" type="search" placeholder="Para onde" autocomplete="off" enterkeyhint="search">
       </label>
       <div class="place-results" id="placeResults"></div>
+      <p class="route-summary" id="routeSummary"></p>
     </div>
-    <p class="route-summary" id="routeSummary"></p>
     <div class="planner-stage">
       <div id="plannerMap"></div>
       <canvas id="plannerSketch" hidden></canvas>
     </div>
     <div class="planner-actions">
       <button class="skeuo" id="useRoute" type="button" disabled>Usar esta rota</button>
-      <button class="skeuo" id="clearRoute" type="button">Dispensar</button>
-      <button class="skeuo" id="openGoogle" type="button">Abrir no Google Maps</button>
+      <div class="planner-pair">
+        <button class="skeuo" id="clearRoute" type="button">Dispensar</button>
+        <button class="skeuo" id="openGoogle" type="button">Google Maps</button>
+      </div>
     </div>
     <p class="map-credit">© OpenStreetMap · traçado OSRM</p>
   </div>
