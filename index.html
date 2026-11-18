@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Velocímetro Cockpit — PWA instalável.
+  Velocímetro Rota — PWA instalável. O Cockpit original fica no outro repositório.
   Android (Chrome): menu do navegador → Instalar app / Adicionar à tela inicial.
   iPhone (Safari): Compartilhar → Adicionar à Tela de Início.
   Velocímetro, viagem, bateria e a tela acesa usam o aparelho e funcionam sem internet.
@@ -15,15 +15,15 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Velocímetro">
-  <title>Velocímetro Cockpit</title>
+  <meta name="apple-mobile-web-app-title" content="Rota">
+  <title>Velocímetro Rota</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="styles.css">
   <script>
     try {
-      var savedTheme = localStorage.getItem('velocimetro.theme');
+      var savedTheme = localStorage.getItem('rota.theme');
       if (savedTheme) document.documentElement.dataset.theme = JSON.parse(savedTheme);
     } catch (error) {}
   </script>

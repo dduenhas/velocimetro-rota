@@ -1,7 +1,7 @@
 {
-  "name": "Velocímetro Cockpit",
-  "short_name": "Velocímetro",
-  "description": "Painel de velocidade, viagem e clima para o suporte do carro. Funciona offline.",
+  "name": "Velocímetro Rota",
+  "short_name": "Rota",
+  "description": "Painel de velocidade, rota no mapa e custo da viagem. Funciona no aparelho.",
   "lang": "pt-BR",
   "id": "/",
   "start_url": "/",

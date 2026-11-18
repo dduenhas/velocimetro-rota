@@ -359,7 +359,7 @@
   function rememberPlace(place) {
     if (!place || !state.weather || state.weather.place === place) return;
     state.weather.place = place;
-    writeStore('velocimetro.weather', state.weather);
+    writeStore('rota.weather', state.weather);
     renderWeather();
   }
 
@@ -416,7 +416,7 @@
           place: keptPlace || '',
           at: Date.now()
         };
-        writeStore('velocimetro.weather', state.weather);
+        writeStore('rota.weather', state.weather);
         renderWeather();
         fetchPlace(lat, lon);
       })
@@ -458,7 +458,7 @@
   }
 
   function saveTrip() {
-    writeStore('velocimetro.trip', state.trip);
+    writeStore('rota.trip', state.trip);
   }
 
   function startTrip() {
@@ -518,8 +518,8 @@
     if (state.history.length > 30) state.history.length = 30;
     state.trip = null;
     lastFix = null;
-    writeStore('velocimetro.history', state.history);
-    writeStore('velocimetro.trip', null);
+    writeStore('rota.history', state.history);
+    writeStore('rota.trip', null);
     renderTrip();
     renderHistory();
     tap();
@@ -649,7 +649,7 @@
 
   function setDemo(on) {
     state.demo = !!on;
-    writeStore('velocimetro.demo', state.demo);
+    writeStore('rota.demo', state.demo);
     els.demoSwitch.setAttribute('aria-checked', state.demo ? 'true' : 'false');
     els.demoSwitch.querySelector('.switch-text').textContent = state.demo ? 'On' : 'Off';
     if (state.demo) {
@@ -676,7 +676,7 @@
     chips.forEach(function (chip) {
       chip.setAttribute('aria-pressed', chip.getAttribute('data-theme-choice') === name ? 'true' : 'false');
     });
-    writeStore('velocimetro.theme', name);
+    writeStore('rota.theme', name);
   }
 
   function setFocus(mode) {
@@ -752,7 +752,7 @@
       remove.textContent = 'Excluir';
       remove.addEventListener('click', function () {
         state.history = state.history.filter(function (item) { return item.id !== trip.id; });
-        writeStore('velocimetro.history', state.history);
+        writeStore('rota.history', state.history);
         renderHistory();
         tap();
       });
@@ -926,7 +926,7 @@
     var key = now.toDateString() + '-' + alarm.hour + ':' + alarm.minute;
     if (alarm.firedKey === key) return;
     alarm.firedKey = key;
-    writeStore('velocimetro.alarm', alarm);
+    writeStore('rota.alarm', alarm);
     ring();
   }
 
@@ -999,17 +999,17 @@
       box.appendChild(toolButton('Hora', function () {
         state.alarm.hour = (state.alarm.hour + 1) % 24;
         state.alarm.firedKey = '';
-        writeStore('velocimetro.alarm', state.alarm);
+        writeStore('rota.alarm', state.alarm);
       }));
       box.appendChild(toolButton('Min', function () {
         state.alarm.minute = (state.alarm.minute + 1) % 60;
         state.alarm.firedKey = '';
-        writeStore('velocimetro.alarm', state.alarm);
+        writeStore('rota.alarm', state.alarm);
       }));
       box.appendChild(toolButton(state.alarm.armed ? 'Desarmar' : 'Armar', function () {
         state.alarm.armed = !state.alarm.armed;
         state.alarm.firedKey = '';
-        writeStore('velocimetro.alarm', state.alarm);
+        writeStore('rota.alarm', state.alarm);
       }));
     }
   }
@@ -1046,7 +1046,7 @@
 
   function setInstrument(name) {
     state.instrument = name || '';
-    writeStore('velocimetro.instrument', state.instrument);
+    writeStore('rota.instrument', state.instrument);
     els.toolPicker.hidden = true;
     state.toolActionsKey = '';
     document.querySelectorAll('#toolPicker button').forEach(function (button) {
@@ -1174,14 +1174,14 @@
     els.demoSwitch = $('demoSwitch');
     els.installBtn = $('installBtn');
 
-    state.history = readStore('velocimetro.history', []) || [];
-    state.trip = readStore('velocimetro.trip', null);
-    state.weather = readStore('velocimetro.weather', null);
-    state.demo = !!readStore('velocimetro.demo', false);
-    state.instrument = readStore('velocimetro.instrument', '') || '';
-    var storedAlarm = readStore('velocimetro.alarm', null);
+    state.history = readStore('rota.history', []) || [];
+    state.trip = readStore('rota.trip', null);
+    state.weather = readStore('rota.weather', null);
+    state.demo = !!readStore('rota.demo', false);
+    state.instrument = readStore('rota.instrument', '') || '';
+    var storedAlarm = readStore('rota.alarm', null);
     if (storedAlarm) state.alarm = storedAlarm;
-    var storedTheme = readStore('velocimetro.theme', document.documentElement.dataset.theme || 'amber');
+    var storedTheme = readStore('rota.theme', document.documentElement.dataset.theme || 'amber');
 
     buildDial();
     buildClock();
