@@ -1,4 +1,4 @@
-const CACHE = 'rota-shell-v2';
+const CACHE = 'rota-shell-v3';
 const ASSETS = [
   './',
   './index.html',

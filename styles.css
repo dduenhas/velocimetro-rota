@@ -1183,6 +1183,32 @@ body.is-focus .companion:has(#toolFace:not([hidden])) .tool-face {
   flex: none;
 }
 
+.nav-pick {
+  height: 44px;
+  flex: none;
+  flex-direction: row;
+}
+
+.nav-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.nav-swap {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0;
+}
+
 .route-planner {
   position: fixed;
   inset: 0;

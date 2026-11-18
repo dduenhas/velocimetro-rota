@@ -53,7 +53,7 @@
     </header>
 
     <main class="dashboard" id="dashboard">
-      <button class="gauge" id="gauge" type="button" aria-pressed="false" aria-label="Alternar modo foco de velocidade">
+        <button class="gauge" id="gauge" type="button" aria-pressed="false" aria-label="Alternar painel, rota no mapa e relógio">
         <span class="hud-hint">Toque para voltar</span>
         <span class="bezel">
           <span class="screw screw-a" aria-hidden="true"></span>
@@ -122,6 +122,7 @@
           <p class="nav-maneuver" id="navManeuver">Rota</p>
           <p class="nav-remain" id="navRemain"></p>
           <p class="nav-costline" id="navCost"></p>
+          <button class="skeuo nav-pick" id="navPick" type="button">Escolher rota</button>
           <div class="trip-actions nav-actions">
             <button class="skeuo" id="navStart" type="button">
               <span class="ico" aria-hidden="true">▶</span>
@@ -136,7 +137,10 @@
               <span>Finalizar</span>
             </button>
           </div>
-          <p class="map-credit" id="navCredit">© OpenStreetMap</p>
+          <div class="nav-foot">
+            <p class="map-credit" id="navCredit">© OpenStreetMap</p>
+            <button class="nav-swap" id="navSwap" type="button" hidden>Trocar</button>
+          </div>
         </div>
       </section>
 
@@ -188,7 +192,7 @@
 
         <div class="launchers">
           <button class="skeuo launcher" id="openMaps" type="button">
-            <span class="launcher-copy"><strong>Maps</strong><small>Rotas</small></span>
+            <span class="launcher-copy"><strong>Rota</strong><small>Mapa</small></span>
           </button>
           <button class="skeuo launcher" id="openSpotify" type="button">
             <span class="launcher-copy"><strong>Spotify</strong><small>Áudio</small></span>

@@ -10,6 +10,10 @@
   };
 
   var MAX_SPEED = 220;
+  var MODE_PANEL = 0;
+  var MODE_NAV = 1;
+  var MODE_FOCUS = 2;
+  var MODE_HUD = 3;
   var ARC_START = -120;
   var ARC_SWEEP = 240;
   var STOP_KMH = 1.5;
@@ -613,7 +617,7 @@
     if (typeof coords.accuracy === 'number' && coords.accuracy > 80 && kmh < 8) kmh = 0;
     pushSample(kmh);
     fetchWeather(coords.latitude, coords.longitude);
-    if (state.focus === 3) renderNav();
+    if (state.focus === MODE_NAV) renderNav();
   }
 
   function onPositionError(error) {
@@ -702,30 +706,24 @@
     writeStore('rota.theme', name);
   }
 
-  function focusCount() {
-    return routeArmed() ? 4 : 3;
-  }
-
   function setFocus(mode) {
-    var count = focusCount();
-    mode = ((mode % count) + count) % count;
+    mode = ((mode % 4) + 4) % 4;
     state.focus = mode;
-    state.hud = mode === 2;
-    document.body.classList.toggle('is-focus', mode === 1);
-    document.body.classList.toggle('is-hud', mode === 2);
-    document.body.classList.toggle('is-nav', mode === 3);
-    if (els.companion) els.companion.hidden = mode !== 1;
-    if (els.navPane) els.navPane.hidden = mode !== 3;
-    if (els.toolPicker && mode !== 1) els.toolPicker.hidden = true;
+    state.hud = mode === MODE_HUD;
+    document.body.classList.toggle('is-focus', mode === MODE_FOCUS);
+    document.body.classList.toggle('is-hud', mode === MODE_HUD);
+    document.body.classList.toggle('is-nav', mode === MODE_NAV);
+    if (els.companion) els.companion.hidden = mode !== MODE_FOCUS;
+    if (els.navPane) els.navPane.hidden = mode !== MODE_NAV;
+    if (els.toolPicker && mode !== MODE_FOCUS) els.toolPicker.hidden = true;
     els.gauge.setAttribute('aria-pressed', mode ? 'true' : 'false');
     if (els.hudHint) {
-      if (mode === 1) els.hudHint.textContent = 'Toque para o velocímetro';
-      else if (mode === 2 && count === 4) els.hudHint.textContent = 'Toque para a rota';
-      else if (mode === 3) els.hudHint.textContent = 'Toque para o painel';
-      else els.hudHint.textContent = 'Toque para voltar';
+      if (mode === MODE_NAV) els.hudHint.textContent = 'Toque para o relógio';
+      else if (mode === MODE_FOCUS) els.hudHint.textContent = 'Toque para o velocímetro';
+      else els.hudHint.textContent = 'Toque para o painel';
     }
-    if (mode === 1) renderClock();
-    if (mode === 3) ensureNav();
+    if (mode === MODE_FOCUS) renderClock();
+    if (mode === MODE_NAV) ensureNav();
     else navFitted = false;
   }
 
@@ -1074,7 +1072,7 @@
       els.toolFace.hidden = true;
       return;
     }
-    els.toolFace.hidden = state.focus !== 1;
+    els.toolFace.hidden = state.focus !== MODE_FOCUS;
     var names = { stopwatch: 'Cronômetro', timer: 'Temporizador', alarm: 'Alarme' };
     els.toolName.textContent = names[state.instrument] || '';
     var readout = '00:00';
@@ -1410,7 +1408,7 @@
     writeStore('rota.vehicle', state.vehicle);
     renderVehicleReadout();
     renderTrip();
-    if (state.focus === 3) renderNav();
+    if (state.focus === MODE_NAV) renderNav();
   }
 
   function fillVehicleForm() {
@@ -1659,7 +1657,7 @@
     if (line.length < 2) {
       ctx.fillStyle = cssColor('--muted', '#f0d48a');
       ctx.font = '700 14px Segoe UI, sans-serif';
-      ctx.fillText('Sem rota neste aparelho', 16, 28);
+      ctx.fillText('Escolha uma rota', 16, 28);
       return;
     }
     var minLat = Infinity;
@@ -1726,12 +1724,16 @@
   }
 
   function renderNav() {
-    if (state.focus !== 3 || !els.navManeuver) return;
+    if (state.focus !== MODE_NAV || !els.navManeuver) return;
     var route = state.route;
+    if (els.navPick) els.navPick.hidden = routeArmed();
+    if (els.navSwap) els.navSwap.hidden = !routeArmed();
     if (!routeArmed()) {
-      els.navManeuver.textContent = 'Nenhuma rota armada';
-      els.navRemain.textContent = '';
+      els.navManeuver.textContent = 'Mapa ao lado do velocímetro';
+      els.navRemain.textContent = 'Escolha a partida e o destino. O traçado fica neste aparelho.';
       els.navCost.textContent = tripCostText();
+      if (els.navCredit) els.navCredit.textContent = navigator.onLine ? '© OpenStreetMap' : 'Sem rede para o mapa-base';
+      if (!navigator.onLine || !mapCenter()) showSketch(els.navSketch, els.navMap, [], state.trip && state.trip.track, lastFix);
       return;
     }
     var progress = lastFix ? routeProgress(lastFix.lat, lastFix.lon, route.geometry) : null;
@@ -1780,16 +1782,24 @@
     updateNavLayers();
   }
 
+  function mapCenter() {
+    if (lastFix) return [lastFix.lat, lastFix.lon];
+    if (state.weather && state.weather.lat != null && state.weather.lon != null) {
+      return [state.weather.lat, state.weather.lon];
+    }
+    return null;
+  }
+
   function ensureNav() {
     renderNav();
-    if (!navigator.onLine) {
-      showSketch(els.navSketch, els.navMap, state.route && state.route.geometry, state.trip && state.trip.track, lastFix);
+    if (!navigator.onLine || (!routeArmed() && !mapCenter())) {
+      showSketch(els.navSketch, els.navMap, state.route && state.route.geometry, [], lastFix);
       return;
     }
     els.navSketch.hidden = true;
     els.navMap.hidden = false;
     loadLeaflet().then(function () {
-      if (state.focus !== 3 || !window.L) return;
+      if (state.focus !== MODE_NAV || !window.L) return;
       if (!navLeaflet) {
         navLeaflet = L.map('navMap', { zoomControl: false, attributionControl: true });
         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -1808,7 +1818,20 @@
   }
 
   function updateNavLayers() {
-    if (!navLeaflet || !routeArmed()) return;
+    if (!navLeaflet) return;
+    if (!routeArmed()) {
+      navRouteLine.setLatLngs([]);
+      navTrackLine.setLatLngs([]);
+      var center = mapCenter();
+      if (!center) return;
+      navMarker.setLatLng(center);
+      navMarker.setStyle({ color: cssColor('--accent', '#ff6d00'), fillColor: cssColor('--accent', '#ff6d00') });
+      if (!navFitted) {
+        navLeaflet.setView(center, 14);
+        navFitted = true;
+      }
+      return;
+    }
     var accent = cssColor('--accent', '#ff6d00');
     var text = cssColor('--text', '#ffb300');
     navRouteLine.setLatLngs(state.route.geometry.map(function (point) { return [point.lat, point.lon]; }));
@@ -1987,7 +2010,7 @@
     state.route = state.draft.route;
     writeStore('rota.route', state.route);
     closePlanner();
-    setFocus(3);
+    setFocus(MODE_NAV);
   }
 
   function clearArmedRoute() {
@@ -1996,7 +2019,7 @@
     writeStore('rota.route', null);
     els.useRoute.disabled = true;
     els.routeSummary.textContent = '';
-    if (state.focus === 3) setFocus(0);
+    if (state.focus === MODE_NAV) setFocus(0);
     tap();
   }
 
@@ -2116,6 +2139,8 @@
     els.navRemain = $('navRemain');
     els.navCost = $('navCost');
     els.navCredit = $('navCredit');
+    els.navPick = $('navPick');
+    els.navSwap = $('navSwap');
     els.navStart = $('navStart');
     els.navPause = $('navPause');
     els.navFinish = $('navFinish');
@@ -2167,7 +2192,7 @@
     setInterval(function () {
       renderClock();
       if (state.trip) renderTrip();
-      if (state.focus === 3) renderNav();
+      if (state.focus === MODE_NAV) renderNav();
     }, 1000);
 
     els.gauge.addEventListener('click', function (event) {
@@ -2193,7 +2218,9 @@
     $('startTrip').addEventListener('click', startTrip);
     $('pauseTrip').addEventListener('click', pauseTrip);
     $('finishTrip').addEventListener('click', finishTrip);
-    $('openMaps').addEventListener('click', openPlanner);
+    $('openMaps').addEventListener('click', function () { setFocus(MODE_NAV); tap(); });
+    $('navPick').addEventListener('click', openPlanner);
+    $('navSwap').addEventListener('click', openPlanner);
     $('closePlanner').addEventListener('click', closePlanner);
     $('useHere').addEventListener('click', useMyPosition);
     $('useRoute').addEventListener('click', useArmedRoute);
@@ -2260,12 +2287,12 @@
     window.addEventListener('resize', function () {
       if (navLeaflet) navLeaflet.invalidateSize();
       if (plannerLeaflet) plannerLeaflet.invalidateSize();
-      if (state.focus === 3 && !navigator.onLine) {
+      if (state.focus === MODE_NAV && !navigator.onLine) {
         drawSketch(els.navSketch, state.route && state.route.geometry, state.trip && state.trip.track, lastFix);
       }
     });
-    window.addEventListener('online', function () { if (state.focus === 3) ensureNav(); });
-    window.addEventListener('offline', function () { if (state.focus === 3) renderNav(); });
+    window.addEventListener('online', function () { if (state.focus === MODE_NAV) ensureNav(); });
+    window.addEventListener('offline', function () { if (state.focus === MODE_NAV) renderNav(); });
 
     bindBattery();
     bindInstall();
