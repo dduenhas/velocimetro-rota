@@ -2289,7 +2289,7 @@
     });
     $('dashboard').addEventListener('click', function (event) {
       if (!state.focus) return;
-      if (event.target.closest('#gauge') || event.target.closest('#companion') || event.target.closest('#navPane')) return;
+      if (event.target.closest('#gauge, #companion, #navPane, button, a, input, select, textarea')) return;
       setFocus(0);
     });
     $('clockDial').addEventListener('click', function (event) {
@@ -2306,7 +2306,11 @@
     $('startTrip').addEventListener('click', startTrip);
     $('pauseTrip').addEventListener('click', pauseTrip);
     $('finishTrip').addEventListener('click', finishTrip);
-    $('openMaps').addEventListener('click', function () { setFocus(MODE_NAV); tap(); });
+    $('openMaps').addEventListener('click', function (event) {
+      event.stopPropagation();
+      setFocus(MODE_NAV);
+      tap();
+    });
     $('navPick').addEventListener('click', openPlanner);
     $('navSwap').addEventListener('click', openPlanner);
     $('useHere').addEventListener('click', useMyPosition);
