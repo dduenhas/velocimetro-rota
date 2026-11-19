@@ -681,19 +681,37 @@ body.is-nav .hud-hint { display: block; }
 body.is-hud .dashboard,
 body.is-focus .dashboard {
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
   min-height: 0;
-  padding: 14px;
-  gap: 14px;
+  padding: 32px 16px 16px;
+  gap: clamp(16px, 3vw, 40px);
 }
 
-body.is-hud .gauge,
-body.is-focus .gauge {
-  width: auto;
-  height: 100%;
-  flex: 1.4 1 0;
+body.is-focus .dashboard {
+  --dial: min(44vw, calc(100dvh - 72px), calc((100vw - 88px) / 2));
+}
+
+body.is-hud .gauge {
+  flex: 0 0 auto;
+  align-self: center;
+  width: min(88vmin, calc(100dvh - 48px));
+  height: min(88vmin, calc(100dvh - 48px));
+}
+
+body.is-focus .gauge,
+body.is-focus .companion {
+  flex: 0 0 auto;
+  align-self: center;
+  width: var(--dial);
+  height: var(--dial);
   min-width: 0;
+  min-height: 0;
+}
+
+body.is-focus .hud-hint {
+  top: -22px;
 }
 
 .companion {
@@ -1500,6 +1518,18 @@ body.is-nav .nav-pane {
 }
 
 @media (orientation: portrait) {
+  body.is-focus .dashboard,
+  body.is-hud .dashboard {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(18px, 4vh, 40px);
+  }
+
+  body.is-focus .dashboard {
+    --dial: min(82vw, calc((100dvh - 140px) / 2));
+  }
+
   .app { max-width: 520px; margin-inline: auto; }
 
   .dashboard {
