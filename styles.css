@@ -867,6 +867,9 @@ body.is-focus .companion:has(#toolFace:not([hidden])) .tool-face {
 .route-map[hidden] { display: none !important; }
 
 #mapCanvas {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
   flex: 1 1 auto;
   min-height: 0;
   border-radius: 12px;
@@ -1328,9 +1331,11 @@ body.is-focus .companion:has(#toolFace:not([hidden])) .tool-face {
 #plannerSketch {
   position: absolute;
   inset: 0;
+  z-index: 0;
   width: 100%;
   height: 100%;
   background: var(--cutout);
+  isolation: isolate;
 }
 
 .nav-bar {
