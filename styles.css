@@ -1382,6 +1382,13 @@ body.is-focus .companion:has(#toolFace:not([hidden])) .tool-face {
   min-width: 0;
 }
 
+.nav-foot-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+}
+
 .nav-swap {
   flex: none;
   border: 0;
@@ -1392,6 +1399,35 @@ body.is-focus .companion:has(#toolFace:not([hidden])) .tool-face {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   padding: 0;
+}
+
+.nav-puck {
+  background: transparent;
+  border: 0;
+}
+
+.nav-puck span {
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent);
+  position: relative;
+}
+
+.nav-puck span::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -9px;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid var(--accent);
 }
 
 .route-planner {
